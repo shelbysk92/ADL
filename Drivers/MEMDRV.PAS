@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A+,B-,D+,F+,G+,I+,L+,N+,P+,Q+,R+,S+,V+,X+,Y+}
+  {$A+,B-,D+,E+,F+,G+,I+,L+,N-,P+,Q+,R+,S+,V+,X+,Y+}
 {$ELSE}
-  {$A+,B-,D-,F+,G+,I+,L-,N+,P+,Q-,R-,S-,V+,X+,Y-}
+  {$A+,B-,D-,F+,E+,G+,I+,L-,N-,P+,Q-,R-,S-,V+,X+,Y-}
 {$ENDIF}
 unit MemDrv;
 
@@ -35,10 +35,10 @@ type
     _memReserved: longint;
     _xmsEnabled: boolean;
     _xmsVersion: real;
-    function GetXmsControlFunction: pointer; virtual;
+    function GetXmsControltion: pointer; virtual;
     procedure XmsAlloc(reference: PReference; size: longint);
     procedure FreeRef(reference: PReference); virtual;
-    procedure MoveReference(reference: PReference; var moveRecord); virtual;
+    procedure MoveReference(reference: PReference; moveRecord: pointer); virtual;
     procedure MoveToConventional(reference: PReference); virtual;
     procedure MoveToXms(reference: PReference); virtual;
   public
@@ -69,15 +69,15 @@ implementation
 
 type
   TXmsMoveRecord = record
-    Length: dword;
+    Length: longint;
     SourceHandle: word;
-    SourceOffset: dword;
+    SourceOffset: pointer;
     DestHandle: word;
-    DestOffset: dword;
+    DestOffset: pointer;
   end;
 
 var
-  XmsControlFunc: pointer;
+  XmsControl: pointer;
 
 function OnHeapError(size: word): integer; far;
 begin
@@ -127,15 +127,15 @@ begin
   _xmsEnabled := false;
   if (XmsSupported) then
   begin
-    XmsControlFunc := GetXmsControlFunction;
-    if (XmsControlFunc = nil) then
+    XmsControl := GetXmsControltion;
+    if (XmsControl = nil) then
     begin
       exit;
     end;
     asm
       push es
       mov  ah, 00h
-      call [XmsControlFunc]
+      call [XmsControl]
       mov  [version], ax
       mov  [revision], bx
       pop  es
@@ -147,7 +147,7 @@ begin
   end;
 end;
 
-function TMemDrv.GetXmsControlFunction: pointer;
+function TMemDrv.GetXmsControltion: pointer;
 var
   result: pointer;
 begin
@@ -159,7 +159,7 @@ begin
     mov  word ptr [result + 2], es
     pop  es
   end;
-  GetXmsControlFunction := result;
+  GetXmsControltion := result;
 end;
 
 function TMemDrv.XmsMemAvailable: word;
@@ -168,7 +168,7 @@ var
 begin
   asm
     mov  ah, 08h
-    call [XmsControlFunc]
+    call [XmsControl]
     mov  [kbytes], ax
   end;
   XmsMemAvailable := kbytes;
@@ -180,32 +180,32 @@ var
 begin
   asm
     mov  ah, 08h
-    call [XmsControlFunc]
+    call [XmsControl]
     mov  [kbytes], dx
   end;
   XmsLargestBlock := kbytes;
 end;
 
-procedure TMemDrv.MoveReference(reference: PReference; var moveRecord);
+procedure TMemDrv.MoveReference(reference: PReference; moveRecord: pointer);
 var
   success: boolean;
-  xmsMoveRecord: TXmsMoveRecord;
   xmsError: byte;
+  segm, offs: word;
 begin
   ClearError(error);
-  xmsMoveRecord := TXmsMoveRecord(moveRecord);
-  with xmsMoveRecord do
-  begin
-    asm
-      push ds
-      mov  ah, 0Bh
-      mov  ds, word ptr [xmsMoveRecord]
-      mov  si, word ptr [xmsMoveRecord + 2]
-      call [XmsControlFunc]
-      mov  [success], al
-      mov  [xmsError], bl
-      pop  ds
-    end;
+  segm := Seg(moveRecord);
+  offs := Ofs(moveRecord);
+  asm
+    push    es
+    push    ds
+    mov     ah, 0bh
+    mov     ds, word ptr [segm]
+    mov     si, word ptr [offs]
+    call    [XmsControl]
+    mov     byte ptr [success], al
+    mov     byte ptr [xmsError], bl
+    pop     ds
+    pop     es
   end;
   if (not success) then
   begin
@@ -247,14 +247,13 @@ begin
       end;
       with XmsMoveRecord do
       begin
-        SetDword(Length, current^.Size);
+        Length := current^.Size;
         SourceHandle := 0;
-        SourceOffset.Low := Seg(current^.Ptr);
-        SourceOffset.High := Ofs(current^.Ptr);
+        SourceOffset := current^.Ptr;
         DestHandle := current^.Handle;
-        SetDword(DestOffset, 0);
+        DestOffset := pointer(0);
       end;
-      MoveReference(current, xmsMoveRecord);
+      MoveReference(current, @xmsMoveRecord);
       current^.Ptr := nil;
       if (error.ErrorCode <> 0) then exit;
     end;
@@ -262,18 +261,6 @@ begin
 
   { Allocate conventional memory for the reference }
   GetMem(reference^.Ptr, reference^.Size);
-
-  { Move the reference into conventional memory }
-  with xmsMoveRecord do
-  begin
-    SetDword(Length, current^.Size);
-    SourceHandle := 0;
-    SourceHandle := current^.Handle;
-    SetDword(SourceOffset, 0);
-    DestOffset.Low := Seg(current^.Ptr);
-    DestOffset.High := Ofs(current^.Ptr);
-  end;
-  MoveReference(current, xmsMoveRecord);
   _currentReference := reference;
 end;
 
@@ -299,14 +286,13 @@ begin
   { Move the reference into XMS memory }
   with xmsMoveRecord do
   begin
-    SetDword(Length, current^.Size);
+    Length := reference^.Size;
     SourceHandle := 0;
-    SourceHandle := current^.Handle;
-    SetDword(SourceOffset, 0);
-    DestOffset.Low := Seg(current^.Ptr);
-    DestOffset.High := Ofs(current^.Ptr);
+    SourceOffset := reference^.Ptr;
+    DestHandle := reference^.Handle;
+    DestOffset := pointer(0);
   end;
-  MoveReference(reference, xmsMoveRecord);
+  MoveReference(reference, @xmsMoveRecord);
   _currentReference := reference;
 end;
 
@@ -344,22 +330,29 @@ var
   xmsHandle: word;
 begin
   xmsSize := Size div 1024;
+  xmsHandle := 0;
+  xmsResult := 0;
+  xmsError := 0;
   if (Size mod 1024 > 0) then
     Inc(xmsSize, 1);
   asm
+    push es
+    push si
     mov  ah, 09h
-    mov  dx, [xmsSize]
-    call [XmsControlFunc]
-    mov  ax, [xmsResult]
-    mov  dx, [xmsHandle]
-    mov  bl, [xmsError]
+    mov  dx, word ptr [xmsSize]
+    call [XmsControl]
+    mov  word ptr [xmsResult], ax
+    mov  word ptr [xmsHandle], dx
+    mov  byte ptr [xmsError], bl
+    pop si
+    pop es
   end;
-  if (xmsError = 1) then
+  if (xmsError > 0) or (xmsResult = 0) then
   begin
     CreateError(error, ecNotEnoughMemory, esError);
     exit;
   end;
-  reference^.Handle := xmsResult;
+  reference^.Handle := xmsHandle;
 end;
 
 procedure TMemDrv.Alloc(var reference: PReference; size: longint);
@@ -511,7 +504,7 @@ begin
   _currentReference := nil;
   _xmsVersion := 0;
   HeapError := @OnHeapError;
-  XmsControlFunc := nil;
+  XmsControl := nil;
   InitXms;
 end;
 

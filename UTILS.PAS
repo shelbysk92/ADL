@@ -21,10 +21,6 @@ type
     Severity: TErrorSeverity;
     ErrorMessage: string;
   end;
-  dword = record
-    Low: word;
-    High: word;
-  end;
 
 const
   ecNone = 0;
@@ -80,7 +76,6 @@ procedure ClearError(var error: TError);
 procedure SwapL(var long1: longint; var long2: longint);
 procedure SwapW(var word1: word; var word2: word);
 procedure ClearVar(var variable);
-procedure SetDword(var dwordVar: dword; num: longint);
 
 implementation
 
@@ -92,17 +87,6 @@ end;
 function NoError(var error: TError): boolean;
 begin
   NoError := error.ErrorCode = ecNone;
-end;
-
-procedure SetDword(var dwordVar: dword; num: longint);
-var
-  lowWord: word;
-  highWord: word;
-begin
-  lowWord := num and $0000FFFF;
-  highWord := num shr 16;
-  dwordVar.Low := Lo(lowWord) or Hi(lowWord);
-  dwordVar.High := Lo(highWord) or Hi(highWord);
 end;
 
 procedure SwapL(var long1: longint; var long2: longint);
