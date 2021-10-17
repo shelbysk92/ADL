@@ -216,7 +216,13 @@ begin
 end;
 
 destructor TMemoryStream.Done;
+var
+  index: integer;
 begin
+  for index := 0 to _buffers^.Count - 1 do
+  begin
+    Memory.FreeReference(_buffers^.GetItem(index));
+  end;
   Dispose(_buffers, Done);
 end;
 
