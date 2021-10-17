@@ -8,9 +8,6 @@ uses
   Utils,
   MemDrv;
 
-const
-  MaxAllocSize: word = 65528;
-
 type
   TSeekOrigin =
   (
@@ -58,17 +55,17 @@ type
   PMemoryStream = ^TMemoryStream;
   TMemoryStream = object(TStream)
   private
-    _buffers: PReferenceList;
+    _buffer: PReference;
   public
     constructor Create(size: longint);
     destructor Done; virtual;
-    function Read(var buffer; count: longint): longint; virtual;
-    function Write(var buffer; count: longint): longint; virtual;
+    function Read(var readBuffer; count: longint): longint; virtual;
+    function Write(var writeBuffer; count: longint): longint; virtual;
     function Seek(offset: longint; origin: TSeekOrigin): longint; virtual;
     function ReadByte: byte; virtual;
     function WriteToStream(stream: TStream; count: longint): longint; virtual;
     function ReadFromStream(stream: TStream; count: longint): longint; virtual;
-    function Buffers: PReferenceList;
+    function Buffer: PReference;
     procedure Init; virtual;
     procedure SetLength(newLength: longint); virtual;
     procedure WriteByte; virtual;
@@ -183,7 +180,6 @@ end;
 constructor TMemoryStream.Create(size: longint);
 var
   index: integer;
-  totalBytes: longint;
   newSize: longint;
   reference: PReference;
 begin
@@ -194,23 +190,17 @@ begin
   _canWrite := true;
   _canSeek := true;
   _closed := false;
-  _buffers := New(PReferenceList, Create('_buffers'));
+  _buffer := New(PReference);
   _length := size;
-  totalBytes := 0;
   Memory.BeginAllocTransaction;
-  while totalBytes < size do
+  newSize := size;
+  if (newSize mod 2) <> 0 then
+    Inc(newSize, 1);
+  Memory.Alloc(reference, newSize);
+  if (_error.ErrorCode <> 0) then
   begin
-    newSize := MinL(size - totalBytes, MaxAllocSize);
-    if (newSize mod 2) <> 0 then
-      Inc(newSize, 1);
-    Memory.Alloc(reference, newSize);
-    _buffers^.Add(reference);
-    if (_error.ErrorCode <> 0) then
-    begin
-      Memory.RollbackAllocTransaction;
-      exit;
-    end;
-    Inc(totalBytes, newSize);
+    Memory.RollbackAllocTransaction;
+    exit;
   end;
   Memory.CommitAllocTransaction;
 end;
@@ -219,18 +209,14 @@ destructor TMemoryStream.Done;
 var
   index: integer;
 begin
-  for index := 0 to _buffers^.Count - 1 do
-  begin
-    Memory.FreeReference(_buffers^.GetItem(index));
-  end;
-  Dispose(_buffers, Done);
+  Memory.FreeReference(_buffer);
 end;
 
-function TMemoryStream.Read(var buffer; count: longint): longint;
+function TMemoryStream.Read(var readBuffer; count: longint): longint;
 begin
 end;
 
-function TMemoryStream.Write(var buffer; count: longint): longint;
+function TMemoryStream.Write(var writeBuffer; count: longint): longint;
 begin
 
 end;
@@ -263,9 +249,9 @@ procedure TMemoryStream.WriteByte;
 begin
 end;
 
-function TMemoryStream.Buffers: PReferenceList;
+function TMemoryStream.Buffer: PReference;
 begin
-  Buffers := _buffers;
+  Buffer := _buffer;
 end;
 
 begin
