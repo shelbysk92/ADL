@@ -1,6 +1,8 @@
 {
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Drivers"
   ],
+  "SelectedNode": "\\Drivers\\MEMDRV.PAS",
   "PreviewInSolutionExplorer": false
 }
