@@ -10,10 +10,8 @@ interface
 uses
   Objects,
   Utils,
+  TPAlloc,
   Dos;
-
-const
-  MaxAllocSize = 65528;
 
 type
   PReferenceList = ^TReferenceList;
@@ -32,9 +30,7 @@ type
   TReference = record
     Xms: boolean;
     Size: longint;
-    case XmsType: TReferenceType of
-      Conventional: (Ptr: pointer);
-      Xms: (XmsOffset: longint);
+    Offset: longint;
   end;
   TLowerPointer = record
     Reference: PReference;
@@ -44,21 +40,22 @@ type
   TMemDrv = object(TObject)
   private
     _references: PReferenceList;
-    _transactionIndex: integer;
     _currentReference: PReference;
     _memReserved: longint;
     _xmsEnabled: boolean;
     _xmsVersion: real;
     _xmsHandle: word;
     _xmsLowerMemorySize: longint;
-    _lowerReference: PReference;
-    _lowerOffset: word;
-    _buffers: PReferenceList;
+    _buffer: PByte;
+    _bufferSize: longint;
+    _lowerAllocated: longint;
+    _xmsAllocated: longint;
+    _xmsSize: longint;
+    _transactionReferences: PReferenceList;
     function GetXmsControlFunction: pointer; virtual;
-    function GetNextXmsOffset(size: longint): longint; virtual;
+    function GetNextOffset(size: longint; xms: boolean): longint; virtual;
     function XmsAlloc(size: longint): word; virtual;
-    function BufferSize: longint; virtual;
-    function GetLowerPointer(referencel
+    function MaxAvail(xms: boolean): longint; virtual;
     procedure MoveReference(reference: PReference; var moveRecord); virtual;
     procedure MoveToConventional(reference: PReference); virtual;
   public
@@ -66,11 +63,14 @@ type
     constructor Create(reserved: longint);
     destructor Done; virtual;
     function XmsSupported: boolean;
-    function XmsEnabled: boolean;
-    function XmsMemAvailable: word;
-    function XmsLargestBlock: word;
+    function XmsEnabled: boolean; virtual;
+    function XmsMemAvail: longint; virtual;
+    function XmsMaxAvail: longint; virtual;
+    function LowerMaxAvail: longint; virtual;
+    function LowerMemAvail: longint; virtual;
     function XmsVersion: real;
     function References: PReferenceList;
+    function BufferSize: longint;
     procedure InitXms;
     procedure Init; virtual;
     procedure SetCurrentReference(reference: PReference); virtual;
@@ -104,6 +104,28 @@ type
 var
   XmsControl: pointer;
 
+function ReferenceOffsetCompare(item1, item2: pointer): integer;
+var
+  ref1, ref2: TReference;
+  result: integer;
+begin
+  ref1 := PReference(item1)^;
+  ref2 := PReference(item2)^;
+  result := 0;
+  if (ref1.Xms < ref2.Xms) then
+    result := -1
+  else if (ref1.Xms > ref2.Xms) then
+   result := 1
+  else
+  begin
+    if (ref1.Offset < ref2.Offset) then
+      result := -1
+    else if (ref1.Offset > ref2.Offset) then
+      result := 1;
+    ReferenceOffsetCompare := result;
+  end;
+end;
+
 function OnHeapError(size: word): integer; far;
 begin
   OnHeapError := 1;
@@ -118,6 +140,11 @@ end;
 function TMemDrv.References: PReferenceList;
 begin
   References := _references;
+end;
+
+function TMemDrv.BufferSize: longint;
+begin
+  BufferSize := _bufferSize;
 end;
 
 function TMemDrv.XmsEnabled: boolean;
@@ -148,8 +175,12 @@ var
   xmsError: byte;
   xmsAllocated: word;
   size: word;
+  kbytes: word;
+  {$IFDEF debug}
+    filename: string;
+    debugFile: File;
+  {$ENDIF}
 begin
-  ClearError(error);
   _xmsEnabled := false;
   if (XmsSupported) then
   begin
@@ -159,14 +190,19 @@ begin
       exit;
     end;
     asm
+      { Initialize XMS }
       push es
       mov  ah, 00h
       call [XmsControl]
       mov  [version], ax
       mov  [revision], bx
       pop  es
+      { Get max XMS available }
+      mov  ah, 08h
+      call [XmsControl]
+      mov  [kbytes], dx
     end;
-    size := XmsLargestBlock;
+    size := kbytes;
     asm
       mov  ah, 09h
       mov  dx, [size]
@@ -175,31 +211,41 @@ begin
       mov  [xmsAllocated], ax
       mov  [xmsError], bl
     end;
+    _xmsSize := size;
     if (xmsError > 0) or (xmsAllocated = 0) then exit;
     _xmsHandle := xmsHandle;
     _xmsEnabled := true;
     hex := Copy(IntToHex(revision),  3, 3);
     Val(hex, _xmsVersion, code);
     _xmsVersion := _xmsVersion / 100;
+    {$IFDEF debug}
+      filename := 'XmsDebug.bin';
+      Assign(debugFile, filename);
+      Rewrite(debugFile, 1);
+      BlockWrite(debugFile, _xmsHandle, SizeOf(_xmsHandle));
+      Close(debugFile);
+    {$ENDIF}
   end;
 end;
 
-function TMemDrv.GetNextXmsOffset(size: longint): longint;
+function TMemDrv.GetNextOffset(size: longint; xms: boolean): longint;
 var
   index: integer;
   offset: longint;
   reference: PReference;
 begin
   offset := 0;
+  GetNextOffset := 0;
   if (_references^.Count = 0) then exit;
   for index := 0 to _references^.Count do
   begin
     reference := _references^.GetItem(index);
-    if (not reference^.Xms) then exit;
-    if (offset + size < reference^.XmsOffset) then break;
+    if (xms and not reference^.Xms) or ((not xms) and reference^.Xms) then
+      continue;
+    if (offset + size < reference^.Offset) then break;
     Inc(offset, reference^.Size);
   end;
-  GetNextXmsOffset := offset;
+  GetNextOffset := offset;
 end;
 
 function TMemDrv.GetXmsControlFunction: pointer;
@@ -217,43 +263,6 @@ begin
   GetXmsControlFunction := result;
 end;
 
-function TMemDrv.XmsMemAvailable: word;
-var
-  kbytes: word;
-begin
-  asm
-    mov  ah, 08h
-    call [XmsControl]
-    mov  [kbytes], ax
-  end;
-  XmsMemAvailable := kbytes;
-end;
-
-function TMemDrv.XmsLargestBlock: word;
-var
-  kbytes: word;
-begin
-  asm
-    mov  ah, 08h
-    call [XmsControl]
-    mov  [kbytes], dx
-  end;
-  XmsLargestBlock := kbytes;
-end;
-
-function TMemDrv.BufferSize: longint;
-var
-  index: integer;
-  result: longint;
-begin
-  result := 0;
-  for index := 0 to _buffers^.Count - 1 do
-  begin
-    Inc(result, _buffers^.GetItem(index)^.Size);
-  end;
-  BufferSize := result;
-end;
-
 procedure TMemDrv.MoveReference(reference: PReference; var moveRecord);
 var
   success: boolean;
@@ -261,7 +270,6 @@ var
   segm, offs: word;
   xseg: word;
 begin
-  ClearError(error);
   segm := Seg(moveRecord);
   offs := Ofs(moveRecord);
   xseg := Seg(XmsControl);
@@ -293,10 +301,10 @@ var
   current: PReference;
   count: integer;
   offset: longint;
-  dest: pointer;
+  dest: longint;
 begin
   { If there is not enough conventional memory, purge references until there is }
-  while (MaxAvail < reference^.Size) do
+  while (LowerMaxAvail < reference^.Size) do
   begin
     if (_references^.Count = 0) then
     begin
@@ -305,65 +313,135 @@ begin
     end;
     index := 0;
     count := _references^.Count;
-    while (index < count) and (MaxAvail - _memReserved < reference^.Size) do
+    while (index < count) and (LowerMaxAvail < reference^.Size) do
     begin
       current := _references^.GetItem(index);
-      if (current^.Ptr = nil) then
+      if (not current^.Xms) then
       begin
         Inc(index);
         continue;
       end;
-
       with xmsMoveRecord do
       begin
         Length := current^.Size;
         SourceHandle := 0;
-        SourceOffset[HiWord] := Ofs(current^.Ptr);
-        SourceOffset[LoWord] := Seg(current^.Ptr);
+        SourceOffset[HiWord] := Ofs(current^.Offset);
+        SourceOffset[LoWord] := Seg(current^.Offset);
         DestHandle := _xmsHandle;
-        offset := GetNextXmsOffset(current^.Size);
+        offset := GetNextOffset(current^.Size, true);
         DestOffset[HiWord] := Ofs(offset);
         DestOffset[LoWord] := Seg(offset);
       end;
       MoveReference(current, xmsMoveRecord);
+      Dec(_lowerAllocated, current^.Size);
       reference^.Xms := true;
-      FreeMem(current^.Ptr, current^.Size);
-      current^.Ptr := nil;
+      current^.Offset := 0;
       if (error.ErrorCode <> 0) then exit;
       Inc(index);
     end;
   end;
 
   { Allocate conventional memory for the reference }
-  GetMem(dest, reference^.Size);
+  dest := GetNextOffset(reference^.Size, false);
+  Inc(_lowerAllocated, reference^.Size);
 
   { Move to conventional memory }
   with xmsMoveRecord do
   begin
     Length := reference^.Size;
     SourceHandle := _xmsHandle;
-    SourceOffset[HiWord] := Ofs(reference^.XmsOffset);
-    SourceOffset[LoWord] := Seg(reference^.XmsOffset);
+    SourceOffset[HiWord] := Ofs(reference^.Offset);
+    SourceOffset[LoWord] := Seg(reference^.Offset);
     DestHandle := 0;
     DestOffset[HiWord] := Ofs(dest);
     DestOffset[LoWord] := Seg(dest);
   end;
   MoveReference(reference, xmsMoveRecord);
-  reference^.Ptr := dest;
+  Dec(_xmsAllocated, reference^.Size);
+  reference^.Offset := dest;
   reference^.Xms := false;
   _currentReference := reference;
 end;
 
-procedure TMemDrv.SetCurrentReference(reference: PReference);
+function TMemDrv.MaxAvail(Xms: boolean): longint;
+var
+  index: integer;
+  result: longint;
+  reference: PReference;
+  next: PReference;
+  avail: longint;
+  count: integer;
 begin
-  ClearError(error);
-  if (_currentReference = reference) then exit;
-  if (reference^.Ptr <> nil) then exit;
-  if (not XmsEnabled) then
+  if (xms) then
+    avail := _xmsSize
+  else
+    avail := _bufferSize;
+  if (_references^.Count = 0) then
   begin
-    CreateError(error, ecInvalidMemoryReference, esError);
+    MaxAvail := avail;
     exit;
   end;
+  count := 0;
+  result := 0;
+  for index := 0 to _references^.Count - 1 do
+  begin
+    reference := _references^.GetItem(index);
+    if (xms and reference^.Xms) or ((not xms) and (not reference^.Xms)) then
+      Inc(count);
+  end;
+  if (count = 0) then
+    result := avail;
+  index := 0;
+  while (index < _references^.Count) do
+  begin
+    reference := _references^.GetItem(index);
+    if (xms and (not reference^.Xms)) or ((not xms) and reference^.Xms) then
+    begin
+    end
+    else if (index + 1 < _references^.Count) then
+    begin
+      next := _references^.GetItem(index + 1);
+      if (index = 0) and (next^.Offset > result) then
+      begin
+        result := next^.Offset - 1;
+      end
+      else if (next^.Offset - reference^.Offset + reference^.Size > result) then
+        result := next^.Offset - reference^.Offset + reference^.Size;
+    end
+    else
+    begin
+      if (avail - reference^.Offset - reference^.Size > result) then
+        result := avail - reference^.Offset - reference^.Size;
+    end;
+    Inc(index);
+  end;
+  MaxAvail := result;
+end;
+
+function TMemDrv.LowerMaxAvail: longint;
+begin
+  LowerMaxAvail := MaxAvail(false);
+end;
+
+function TMemDrv.LowerMemAvail: longint;
+begin
+  LowerMemAvail := _bufferSize - _lowerAllocated;
+end;
+
+function TMemDrv.XmsMemAvail: longint;
+begin
+  XmsMemAvail := _xmsSize * 1024;
+end;
+
+function TMemDrv.XmsMaxAvail: longint;
+begin
+  XmsMaxAvail := MaxAvail(true) * 1024;
+end;
+
+procedure TMemDrv.SetCurrentReference(reference: PReference);
+begin
+  if (_currentReference = reference) then exit;
+  if (not reference^.Xms) then exit;
   MoveToConventional(reference);
   if (error.ErrorCode <> ecNone) then
   begin
@@ -407,8 +485,10 @@ begin
 end;
 
 procedure TMemDrv.Alloc(var reference: PReference; size: longint);
+var
+  lowAvail: longint;
+  xmsAvail: longint;
 begin
-  ClearError(error);
   if (size = 0) then
   begin
     CreateError(error, ecInvalidAllocSize, esError);
@@ -416,14 +496,20 @@ begin
   end;
   reference := New(PReference);
   reference^.Size := Size;
-  reference^.Ptr := nil;
-  if (size <= MaxAvail - _memReserved) then
+  reference^.Offset := 0;
+  lowAvail := LowerMaxAvail;
+  xmsAvail := XmsMaxAvail;
+  if (size <= lowAvail) then
   begin
-    GetMem(reference^.Ptr, reference^.Size);
+    reference^.Offset := GetNextOffset(size, false);
+    Inc(_lowerAllocated, size);
+    reference^.Xms := false;
   end
-  else if (XmsEnabled) then
+  else if (XmsEnabled) and (size <= xmsAvail) then
   begin
-    reference^.XmsOffset := GetNextXmsOffset(size);
+    reference^.Offset := GetNextOffset(size, true);
+    Inc(_xmsAllocated, size);
+    reference^.Xms := true;
   end
   else
   begin
@@ -440,12 +526,11 @@ var
   xmsHandle: word;
   index: integer;
 begin
-  ClearError(error);
-  if (not reference^.Xms) then
-  begin
-    FreeMem(reference^.Ptr, reference^.Size);
-  end;
   index := _references^.IndexOf(reference);
+  if (not reference^.Xms) then
+    Dec(_lowerAllocated, reference^.Size)
+  else
+    Dec(_xmsAllocated, reference^.Size);
   if (index >= 0) then
     _references^.Delete(index);
 end;
@@ -455,7 +540,6 @@ var
   index: integer;
   current: PReference;
 begin
-  ClearError(error);
   FreeReference(reference);
 end;
 
@@ -485,12 +569,7 @@ begin
   end;
   Dispose(_references, Done);
   index := 0;
-  while (index < _buffers^.Count) do
-  begin
-    FreeMem(_buffers^.GetItem(index), MaxAllocSize);
-    inc(index);
-  end;
-  Dispose(_buffers, Done);
+  HugeFreeMem(_buffer, _bufferSize);
   xmsHandle := _xmsHandle;
   if (XmsEnabled) then
   asm
@@ -502,12 +581,13 @@ end;
 
 procedure TMemDrv.BeginAllocTransaction;
 begin
-  _transactionIndex := _references^.Count;
+  _transactionReferences := New(PReferenceList, Create('TransactionRefs'));
 end;
 
 procedure TMemDrv.CommitAllocTransaction;
 begin
-  _transactionIndex := -1;
+  Dispose(_transactionReferences, Done);
+  _transactionReferences := nil;
 end;
 
 procedure TMemDrv.RollbackAllocTransaction;
@@ -515,50 +595,37 @@ var
   index: integer;
   current: PReference;
 begin
-  ClearError(error);
-  if (_transactionIndex < 0) or (_transactionIndex > _references^.Count - 1) then
+  if (_transactionReferences <> nil) then
     exit;
-  for index := _references^.Count - 1 downto _transactionIndex do
+  index := _transactionReferences^.Count - 1;
+  while (index >= 0) do
   begin
     current := _references^.GetItem(index);
-    if (current <> nil) then
-    begin
-      FreeReference(current);
-    end;
+    FreeReference(current);
+    Dec(index);
   end;
+  Dispose(_transactionReferences, Done);
 end;
 
 procedure TMemDrv.Init;
 var
   reference: PReference;
   size: word;
-  allocated: longint;
-  lowerAvail: longint;
 begin
-  _references := New(PReferenceList, Create('References'));
-  _transactionIndex := -1;
+  ClearError(error);
+  _references := New(PReferenceList, CreateSorted('References', @ReferenceOffsetCompare));
   _currentReference := nil;
   _xmsVersion := 0;
   _xmsHandle := 0;
-  _buffers := New(PReferenceList, Create('LowMemoryBuffers'));
-  _lowerReference := nil;
-  _lowerOffset := nil;
-
+  _buffer := nil;
+  _bufferSize := 0;
+  _lowerAllocated := 0;
+  _xmsAllocated := 0;
   reference := nil;
-  lowerAvail := MaxAvail - _memReserved;
-  allocated := 0;
-  while (allocated < lowerAvail) do
-  begin
-    size := MinL(MaxAvail, MaxAllocSize);
-    if (size + allocated > lowerAvail) then
-      size := lowerAvail - allocated;
-    reference := New(PReference);
-    reference^.Xms := false;
-    reference^.Ptr := nil;
-    GetMem(reference^.Ptr, size);
-    _buffers^.Add(reference);
-    Inc(allocated, size);
-  end;
+  _bufferSize := System.MaxAvail - _memReserved;
+  _xmsSize := 0;
+  _transactionReferences := nil;
+  HugeGetMem(_buffer, _bufferSize);
   HeapError := @OnHeapError;
   XmsControl := nil;
   InitXms;
