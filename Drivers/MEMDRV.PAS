@@ -1,5 +1,5 @@
 {$IFDEF debug}
-  {$A+,B-,D+,E+,F+,G+,I+,L+,N-,P+,Q+,R+,S+,V+,X+,Y+}
+  {$A+,B-,D+,E+,E+,G+,I+,L+,N-,P+,Q+,R+,S+,V+,X+,Y+}
 {$ELSE}
   {$A+,B-,D-,F+,E+,G+,I+,L-,N-,P+,Q-,R-,S-,V+,X+,Y-}
 {$ENDIF}
@@ -104,7 +104,7 @@ type
 var
   XmsControl: pointer;
 
-function ReferenceOffsetCompare(item1, item2: pointer): integer;
+function ReferenceOffsetCompare(item1, item2: pointer): integer; far;
 var
   ref1, ref2: TReference;
   result: integer;
@@ -122,13 +122,18 @@ begin
       result := -1
     else if (ref1.Offset > ref2.Offset) then
       result := 1;
-    ReferenceOffsetCompare := result;
   end;
+  ReferenceOffsetCompare := result;
 end;
 
 function OnHeapError(size: word): integer; far;
 begin
   OnHeapError := 1;
+end;
+
+function IsXms(item: PReference; var value): boolean; far;
+begin
+  IsXms := item^.Xms = boolean(value);
 end;
 
 constructor TMemDrv.Create(reserved: longint);
@@ -233,18 +238,21 @@ var
   index: integer;
   offset: longint;
   reference: PReference;
+  filtered: PList;
 begin
   offset := 0;
   GetNextOffset := 0;
-  if (_references^.Count = 0) then exit;
-  for index := 0 to _references^.Count do
+  filtered := _references^.WhereIsXms, xms);
+  if (filtered^.Count = 0) then exit;
+  for index := 0 to filtered^.Count do
   begin
-    reference := _references^.GetItem(index);
+    reference := filtered^.GetItem(index);
     if (xms and not reference^.Xms) or ((not xms) and reference^.Xms) then
       continue;
     if (offset + size < reference^.Offset) then break;
     Inc(offset, reference^.Size);
   end;
+  Dispose(filtered, Done);
   GetNextOffset := offset;
 end;
 
@@ -371,50 +379,46 @@ var
   next: PReference;
   avail: longint;
   count: integer;
+  offset: longint;
+  size: longint;
+  blockSize: longint;
+  filtered: PList;
 begin
-  if (xms) then
-    avail := _xmsSize
-  else
-    avail := _bufferSize;
-  if (_references^.Count = 0) then
+  result := 0;
+  if (xms) then avail := _xmsSize else avail := _bufferSize;
+  { get only references with Xms flag that matches the Xms parameter }
+  filtered := _references^.Where(@IsXms, Xms);
+  if (filtered^.Count = 0) then
   begin
     MaxAvail := avail;
     exit;
   end;
-  count := 0;
-  result := 0;
-  for index := 0 to _references^.Count - 1 do
+  if (filtered^.Count = 1) then
   begin
-    reference := _references^.GetItem(index);
-    if (xms and reference^.Xms) or ((not xms) and (not reference^.Xms)) then
-      Inc(count);
+    reference := PReference(filtered^.GetItem(0));
+    MaxAvail := avail - reference^.Size;
+    exit;
   end;
-  if (count = 0) then
-    result := avail;
-  index := 0;
-  while (index < _references^.Count) do
+  for index := 0 to filtered^.Count - 1 do
   begin
-    reference := _references^.GetItem(index);
-    if (xms and (not reference^.Xms)) or ((not xms) and reference^.Xms) then
+    reference := filtered^.GetItem(index);
+    offset := reference^.Offset;
+    size := reference^.Size;
+    { get the size between current reference and next }
+    if (index + 1 < filtered^.Count - 1) then
     begin
+      next := filtered^.GetItem(index + 1);
+      blockSize := next^.Offset - (offset + size);
     end
-    else if (index + 1 < _references^.Count) then
-    begin
-      next := _references^.GetItem(index + 1);
-      if (index = 0) and (next^.Offset > result) then
-      begin
-        result := next^.Offset - 1;
-      end
-      else if (next^.Offset - reference^.Offset + reference^.Size > result) then
-        result := next^.Offset - reference^.Offset + reference^.Size;
-    end
+    { no reference atfer the current, so return size between reference and max }
     else
     begin
-      if (avail - reference^.Offset - reference^.Size > result) then
-        result := avail - reference^.Offset - reference^.Size;
+      blockSize := avail - (offset + size);
     end;
-    Inc(index);
+    if (size > result) then
+      result := size;
   end;
+  dispose(filtered, done);
   MaxAvail := result;
 end;
 
@@ -502,12 +506,14 @@ begin
   if (size <= lowAvail) then
   begin
     reference^.Offset := GetNextOffset(size, false);
+    reference^.Size := size;
     Inc(_lowerAllocated, size);
     reference^.Xms := false;
   end
   else if (XmsEnabled) and (size <= xmsAvail) then
   begin
     reference^.Offset := GetNextOffset(size, true);
+    reference^.Size := size;
     Inc(_xmsAllocated, size);
     reference^.Xms := true;
   end
@@ -613,7 +619,8 @@ var
   size: word;
 begin
   ClearError(error);
-  _references := New(PReferenceList, CreateSorted('References', @ReferenceOffsetCompare));
+  { references are always sorted by Xms flag and Offset ascending }
+  _references := New(PReferenceList, CreateSorted('References', ReferenceOffsetCompare));
   _currentReference := nil;
   _xmsVersion := 0;
   _xmsHandle := 0;
