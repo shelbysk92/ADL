@@ -242,7 +242,7 @@ var
 begin
   offset := 0;
   GetNextOffset := 0;
-  filtered := _references^.WhereIsXms, xms);
+{  filtered := _references^.Where(IsXms, xms);}
   if (filtered^.Count = 0) then exit;
   for index := 0 to filtered^.Count do
   begin
@@ -387,7 +387,7 @@ begin
   result := 0;
   if (xms) then avail := _xmsSize else avail := _bufferSize;
   { get only references with Xms flag that matches the Xms parameter }
-  filtered := _references^.Where(@IsXms, Xms);
+{  filtered := _references^.Where(@IsXms, Xms);}
   if (filtered^.Count = 0) then
   begin
     MaxAvail := avail;
