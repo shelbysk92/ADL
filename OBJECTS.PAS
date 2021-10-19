@@ -55,7 +55,7 @@ type
     function Count: integer; virtual;
     function Capacity: integer; virtual;
     function Sorted: boolean; virtual;
-    function Where(var predicate: TPredicate; var value): PList;
+    function Where(predicate: TPredicate; var value): PList;
     procedure SetCapacity(cap: integer);
     procedure Insert(index: integer; item: pointer);
     procedure Delete(index: integer);
@@ -221,38 +221,36 @@ end;
 
 function TList.GetSortedIndex(item: pointer): integer;
 var
-  index: integer;
   compared: integer;
-  upper, lower: integer;
+  upper, lower, middle: integer;
   item2: pointer;
 begin
-  GetSortedIndex := -1;
+  GetSortedIndex := 0;
   if (_count = 0) then exit;
   if (_count = 1) then
   begin
-    GetSortedIndex := _count;
-    exit;
+    if (TComparer(_comparer)(item, GetItem(0)) < 0) then
+      GetSortedIndex := 0
+    else
+      GetSortedIndex := 1;
   end;
-  index := _count div 2;
   upper := _count;
   lower := 0;
-  compared := 0;
-  while (upper <> lower) do
-  begin
-    item2 := GetItem(index);
+  repeat
+    middle := (upper + lower) div 2;
+    item2 := GetItem(middle);
     compared := TComparer(_comparer)(item, item2);
     if (compared < 0) then
-    begin
-      upper := index;
-      index := (upper - lower) div 2;
-    end
+      lower := middle
     else if (compared > 0) then
+      upper := middle
+    else
     begin
-      lower := index;
-      index := (upper - lower) div 2;
+      middle := upper;
+      break;
     end;
-  end;
-  GetSortedIndex := index;
+  until (upper = lower);
+  GetSortedIndex := middle;
 end;
 
 function TList.Add(item: pointer): integer;
@@ -271,9 +269,14 @@ begin
   begin
     index := GetSortedIndex(item);
   end;
-  itemLoc := pointer(LongInt(_buffer) + 4 * index);
-  Inc(_count);
-  itemLoc^ := item;
+  if (index = _count) then
+  begin
+    itemLoc := pointer(LongInt(_buffer) + 4 * index);
+    Inc(_count);
+    itemLoc^ := item;
+  end
+  else
+    Insert(index, item);
 end;
 
 procedure TList.Insert(index: integer; item: pointer);
@@ -319,7 +322,7 @@ begin
   SetCapacity(DefaultListCapacity);
 end;
 
-function TList.Where(var predicate: TPredicate; var value): PList;
+function TList.Where(predicate: TPredicate; var value): PList;
 var
   result: PList;
   index: integer;
@@ -331,7 +334,7 @@ begin
   for index := 0 to _count - 1 do
   begin
     item := GetItem(index);
-    if TPredicate(predicate)(item, value) then
+    if predicate(item, value) then
       result^.Add(item);
   end;
 end;

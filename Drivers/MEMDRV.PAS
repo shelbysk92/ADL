@@ -112,17 +112,10 @@ begin
   ref1 := PReference(item1)^;
   ref2 := PReference(item2)^;
   result := 0;
-  if (ref1.Xms < ref2.Xms) then
+  if (ref1.Offset < ref2.Offset) then
     result := -1
-  else if (ref1.Xms > ref2.Xms) then
-   result := 1
-  else
-  begin
-    if (ref1.Offset < ref2.Offset) then
-      result := -1
-    else if (ref1.Offset > ref2.Offset) then
-      result := 1;
-  end;
+  else if (ref1.Offset > ref2.Offset) then
+    result := 1;
   ReferenceOffsetCompare := result;
 end;
 
@@ -131,9 +124,9 @@ begin
   OnHeapError := 1;
 end;
 
-function IsXms(item: PReference; var value): boolean; far;
+function IsXms(item: pointer; var value): boolean; far;
 begin
-  IsXms := item^.Xms = boolean(value);
+  IsXms   := PReference(item)^.Xms = boolean(value);
 end;
 
 constructor TMemDrv.Create(reserved: longint);
@@ -216,7 +209,7 @@ begin
       mov  [xmsAllocated], ax
       mov  [xmsError], bl
     end;
-    _xmsSize := size;
+    _xmsSize := longint(size) * 1024;
     if (xmsError > 0) or (xmsAllocated = 0) then exit;
     _xmsHandle := xmsHandle;
     _xmsEnabled := true;
@@ -239,12 +232,14 @@ var
   offset: longint;
   reference: PReference;
   filtered: PList;
+  count: integer;
 begin
   offset := 0;
   GetNextOffset := 0;
-{  filtered := _references^.Where(IsXms, xms);}
+  filtered := _references^.Where(IsXms, xms);
   if (filtered^.Count = 0) then exit;
-  for index := 0 to filtered^.Count do
+  count := filtered^.Count;
+  for index := 0 to count - 1 do
   begin
     reference := filtered^.GetItem(index);
     if (xms and not reference^.Xms) or ((not xms) and reference^.Xms) then
@@ -387,7 +382,7 @@ begin
   result := 0;
   if (xms) then avail := _xmsSize else avail := _bufferSize;
   { get only references with Xms flag that matches the Xms parameter }
-{  filtered := _references^.Where(@IsXms, Xms);}
+  filtered := _references^.Where(IsXms, Xms);
   if (filtered^.Count = 0) then
   begin
     MaxAvail := avail;
@@ -434,12 +429,12 @@ end;
 
 function TMemDrv.XmsMemAvail: longint;
 begin
-  XmsMemAvail := _xmsSize * 1024;
+  XmsMemAvail := _xmsSize - _xmsAllocated;
 end;
 
 function TMemDrv.XmsMaxAvail: longint;
 begin
-  XmsMaxAvail := MaxAvail(true) * 1024;
+  XmsMaxAvail := MaxAvail(true);
 end;
 
 procedure TMemDrv.SetCurrentReference(reference: PReference);
