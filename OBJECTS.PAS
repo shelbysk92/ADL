@@ -45,9 +45,10 @@ type
   public
     constructor CreateCapacity(newId: string; initialCapacity: integer);
     constructor Create(newId: string);
-    constructor CreateSorted(newId: string; newComparer: TComparer);
-    procedure Init; virtual;
+    constructor CreateSorted(newId: string; comparer: TComparer);
     destructor Done; virtual;
+    procedure Init; virtual;
+    procedure Sort(comparer: TComparer); virtual;
     function ToString: string; virtual;
     function GetItem(index: integer): pointer;
     function IndexOf(item: pointer): integer;
@@ -56,6 +57,7 @@ type
     function Capacity: integer; virtual;
     function Sorted: boolean; virtual;
     function Where(predicate: TPredicate; var value): PList;
+    procedure SetItem(index: integer; item: pointer);
     procedure SetCapacity(cap: integer);
     procedure Insert(index: integer; item: pointer);
     procedure Delete(index: integer);
@@ -147,12 +149,12 @@ begin
   Init;
 end;
 
-constructor TList.CreateSorted(newId: string; newComparer: TComparer);
+constructor TList.CreateSorted(newId: string; comparer: TComparer);
 begin
   Id := newId;
   _capacity := 0;
   _sorted := true;
-  _comparer := newComparer;
+  _comparer := comparer;
   SetCapacity(DefaultListCapacity);
   Init;
 end;
@@ -178,6 +180,14 @@ end;
 function TList.ToString: string;
 begin
   ToString := 'TList';
+end;
+
+procedure TList.SetItem(index: integer; item: pointer);
+var
+  itemLoc: pointer;
+begin
+  itemLoc := Pointer(LongInt(_buffer) + 4 * index);
+  Move(itemLoc^, item, 4);
 end;
 
 function TList.GetItem(index: integer): pointer;
@@ -217,6 +227,41 @@ begin
     end;
     Inc(index);
   until false;
+end;
+
+procedure TList.Sort(comparer: TComparer);
+  procedure QuickSort(lowIndex, highIndex: integer);
+  var
+    low, high: integer;
+    pivot, temp, lowItem, highItem: pointer;
+  begin
+    low := lowIndex;
+    high := highIndex;
+    lowItem := GetItem(lowIndex);
+    highItem := GetItem(highIndex);
+    pivot := GetItem((lowIndex + highIndex) div 2);
+    repeat
+      while comparer(lowItem, pivot) < 0 do
+        Inc(low) ;
+      while comparer(highItem, pivot) > 0 do
+        Dec(high);
+      if low <= high then
+      begin
+        temp := GetItem(low);
+        SetItem(low, GetItem(high));
+        SetItem(high, temp);
+        Inc(low) ;
+        Dec(high) ;
+      end;
+    until low > high;
+    if high > lowIndex then
+      QuickSort(lowIndex, high);
+    if low < high then
+      QuickSort(low, highIndex);
+  end;
+begin
+  if (_count = 0) then exit;
+  QuickSort(0, _count - 1);
 end;
 
 function TList.GetSortedIndex(item: pointer): integer;

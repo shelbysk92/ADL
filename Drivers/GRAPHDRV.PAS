@@ -73,21 +73,19 @@ type
   PFont = ^TFont;
   TFont = object(TObject)
   private
-    _driver: PGraphicsDriver;
     _fontData: PByte;
-    _height: integer;
     _maxWidth: integer;
   public
     Version: real;
     TransparentColor: byte;
     Transparent: boolean;
     Initialized: boolean;
-    constructor Create(newId: string; driver: PGraphicsDriver);
+    Height: integer;
+    constructor Create(newId: string);
     constructor CreateAssign(font: TFont);
     destructor Done; virtual;
     procedure Assign(font: TFont); virtual;
     procedure Init; virtual;
-    procedure DrawText(x, y: integer; Text: string); virtual;
     procedure ReadFromStream(stream: TStream; var error: TError); virtual;
     procedure WriteToStream(stream: TStream; var error: TError); virtual;
     function CharWidth(ch: char): integer; virtual;
@@ -103,7 +101,6 @@ type
     ForeColor: byte;
     BackColor: byte;
     xPos, yPos: integer;
-    Font: TFont;
     function GetPixel(x, y: integer): byte; virtual;
     function GetColor(color: TStandardColor; intensity: byte): byte;
     procedure SetMode(newMode: TGraphicsMode; var error: TError); virtual;
@@ -118,12 +115,12 @@ type
     procedure Rectangle(x1, y1, x2, y2: integer); virtual;
     procedure FillRect(rect: TRect); virtual;
     procedure DrawImage(x, y: integer; image: PByte); virtual;
+    procedure DrawText(x, y: integer; text: string); virtual;
+    procedure DrawTextW(x, y: integer; text: TWideString); virtual;
     procedure SetStandardPalette; virtual;
     procedure Init; virtual;
     destructor Done; virtual;
   end;
-
-
 
 implementation
 
@@ -138,7 +135,6 @@ begin
   BackColor := 0;
   xPos := 0;
   yPos := 0;
-  {Font.Create('DefaultFont', self);}
 end;
 
 procedure TGraphicsDriver.GetViewPort(var rect: TRect);
@@ -192,6 +188,14 @@ begin
 end;
 
 procedure TGraphicsDriver.DrawImage(x, y: integer; image: PByte);
+begin
+end;
+
+procedure TGraphicsDriver.DrawText(x, y: integer; text: string);
+begin
+end;
+
+procedure TGraphicsDriver.DrawTextW(x, y: integer; text: TWideString);
 begin
 end;
 
@@ -261,8 +265,10 @@ begin
   TObjectList.Insert(index, item);
 end;
 
-constructor TFont.Create(newId: string; driver: PGraphicsDriver);
+constructor TFont.Create(newId: string);
 begin
+  Id := newId;
+  Init;
 end;
 
 constructor TFont.CreateAssign(font: TFont);
@@ -279,10 +285,13 @@ end;
 
 procedure TFont.Init;
 begin
-end;
-
-procedure TFont.DrawText(x, y: integer; Text: string);
-begin
+  _fontData := nil;
+  _maxWidth := 8;
+  Version := 1.0;
+  TransparentColor := 0;
+  Transparent := true;
+  Initialized := true;
+  Height := 8;
 end;
 
 procedure TFont.ReadFromStream(stream: TStream; var error: TError);
@@ -299,10 +308,12 @@ end;
 
 function TFont.TextWidth(text: string): integer;
 begin
+  TextWidth := Length(text) * 8;
 end;
 
 function TFont.TextWidthW(text: TWideString): integer;
 begin
+  TextWidthW := text.Len * 8;
 end;
 
 end.

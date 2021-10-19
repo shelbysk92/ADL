@@ -6,6 +6,7 @@ uses
   Objects,
   GraphDrv,
   Utils,
+  WideStr,
   Drawing;
 
 type
@@ -18,13 +19,14 @@ type
     function GetPixel(x, y: integer): byte; virtual;
     procedure SetSVgaPalette(palette: TRgbPalette);
     procedure InitBgiDriver(var driver: integer; bgiMode: integer; var error: TError);
-    procedure RegisterBgiDrivers(var error: TError);
+    procedure RegisterBgiDriver(newMode: integer;var error: TError);
     procedure SetFillSolid(color: byte);  public
     procedure SetMode(newMode: TGraphicsMode; var error: TError); virtual;
     procedure SetPixel(x, y: integer); virtual;
     procedure GetViewPort(var rect: TRect); virtual;
     procedure SetViewPort(rect: TRect); virtual;
-    procedure DrawText(x, y: integer; Text: string); virtual;
+    procedure DrawText(x, y: integer; text: string); virtual;
+    procedure DrawTextW(x, y: integer; text: TWideString); virtual;
     procedure MoveTo(x, y: integer); virtual;
     procedure LineTo(x, y: integer); virtual;
     procedure Line(x1, y1, x2, y2: integer); virtual;
@@ -55,7 +57,8 @@ const
   SVga1280x1024x256 = 6;
 
 var
-  SolidPattern: FillPatternType;
+  _solidPattern: FillPatternType;
+  _selectedMode: integer;
 
 procedure TSVgaDriver.Init;
 var
@@ -64,9 +67,8 @@ var
 begin
   TGraphicsDriver.Init;
   TypeName := 'TSVgaDriver';
-  RegisterBgiDrivers(error);
   SVgaDriver := 0;
-  FillChar(SolidPattern, SizeOf(SolidPattern), $FF);
+  FillChar(_solidPattern, SizeOf(_solidPattern), $FF);
 
   newMode := New(PGraphicsMode, Create('SVGA320x200x256'));
   with newMode^ do
@@ -103,8 +105,8 @@ begin
     Description := 'SVGA 640x480 256-Color';
     Width := 640;
     Height := 480;
-    MaxX := 679;
-    MaxY := 449;
+    MaxX := 639;
+    MaxY := 479;
     Bpp := 8;
     HelpText := 'Requires a VESA compliant Super VGA card.'
   end;
@@ -114,7 +116,7 @@ begin
   with newMode^ do
   begin
     AdditionalData := SVga800x600x256;
-    Description := 'SVGA 800x6200 256-Color';
+    Description := 'SVGA 800x600 256-Color';
     Width := 800;
     Height := 600;
     MaxX := 799;
@@ -188,9 +190,17 @@ begin
 end;
 
 procedure TSVgaDriver.SetViewPort(rect: TRect);
+var
+  right, bottom, x, y, width, height: integer;
 begin
   TGraphicsDriver.SetViewPort(rect);
-  Graph.SetViewPort(rect.X, rect.Y, rect.Right, rect.Bottom, true);
+  right := rect.Right;
+  bottom := rect.bottom;
+  x := rect.X;
+  y := rect.Y;
+  width := rect.Width;
+  height := rect.height;
+  Graph.SetViewPort(rect.X, rect.Y, rect.Width, rect.Height, true);
 end;
 
 function TSVgaDriver.GetPixel(x, y: integer): byte;
@@ -198,7 +208,10 @@ begin
 end;
 
 procedure TSVgaDriver.SetMode(newMode: TGraphicsMode; var error: TError);
+var
+  selectedMode: integer;
 begin
+  RegisterBgiDriver(newMode.AdditionalData, error);
   InitBgiDriver(SVgaDriver, newMode.AdditionalData, error);
   SetTextStyle(DefaultFont, HorizDir, 1);
   Mode := newMode;
@@ -208,7 +221,12 @@ procedure TSVgaDriver.SetPixel(x, y: integer);
 begin
 end;
 
-procedure TSVgaDriver.DrawText(x, y: integer; Text: string);
+procedure TSVgaDriver.DrawText(x, y: integer; text: string);
+begin
+  OutTextXY(x, y, text);
+end;
+
+procedure TSVgaDriver.DrawTextW(x, y: integer; text: TWideString);
 begin
 end;
 
@@ -230,6 +248,10 @@ end;
 
 procedure TSVgaDriver.HLine(x, y, width: integer);
 begin
+  SetColor(ForeColor);
+  SetLineStyle(SolidLn, 0, NormWidth);
+  Graph.MoveTo(x, y);
+  Graph.LineTo(x + width - 1, y);
 end;
 
 procedure TSVgaDriver.VLine(x, y, height: integer);
@@ -241,7 +263,7 @@ begin
   SetColor(ForeColor);
   SetBkColor(BackColor);
   SetFillStyle(SolidFill, BackColor);
-  SetFillPattern(SolidPattern, BackColor);
+  SetFillPattern(_solidPattern, BackColor);
   Bar(rect.X, rect.Y, rect.Right, rect.Bottom);
 end;
 
@@ -409,13 +431,14 @@ var
 begin
   DetectGraph(DetectedDriver, Mode);
   if (DetectedDriver = VGA) or (DetectedDriver = MCGA) then
-    DetectVga256 := Mode
+    DetectVga256 := _selectedMode
   else
     DetectVga256 := grError;
 end;
 
-procedure TSVgaDriver.RegisterBgiDrivers(var error: TError);
+procedure TSVgaDriver.RegisterBgiDriver(newMode: integer; var error: TError);
 begin
+  _selectedMode := newMode;
   ClearError(error);
   SVgaDriver := InstallUserDriver('SVGA256', @DetectVga256);
 end;
@@ -423,7 +446,7 @@ end;
 procedure TSVgaDriver.SetFillSolid(color: byte);
 begin
   SetFillStyle(SolidFill, color);
-  SetFillPattern(SolidPattern, color);
+  SetFillPattern(_solidPattern, color);
 end;
 
 begin
