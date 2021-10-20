@@ -96,6 +96,7 @@ begin
     );
   end;
   InitMouse;
+  HideMouse;
   WriteLn('Mouse initialized.');
 {  Keyboard.Create;}
   Closed := false;
@@ -125,6 +126,7 @@ end;
 destructor TApplication.Done;
 begin
   TObject.Done;
+  Memory.Done;
 {  Keyboard.Done;}
   while KeyPressed do ReadKey;
 end;

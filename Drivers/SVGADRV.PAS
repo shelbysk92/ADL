@@ -199,7 +199,7 @@ begin
   y := rect.Y;
   width := rect.Width;
   height := rect.height;
-  Graph.SetViewPort(rect.X, rect.Y, rect.Width, rect.Height, true);
+  Graph.SetViewPort(rect.X, rect.Y, rect.Right, rect.Bottom, true);
 end;
 
 function TSVgaDriver.GetPixel(x, y: integer): byte;
@@ -209,12 +209,15 @@ end;
 procedure TSVgaDriver.SetMode(newMode: TGraphicsMode);
 var
   selectedMode: integer;
+  rect: TRect;
 begin
   RegisterBgiDriver(newMode.AdditionalData);
   InitBgiDriver(SVgaDriver, newMode.AdditionalData);
   if (Error.ErrorCode <> ecNone) then exit;
-  SetTextStyle(DefaultFont, HorizDir, 1);
   Mode := newMode;
+  rect.Create(0, 0, mode.Width, mode.Height);
+  SetViewPort(rect);
+  SetTextStyle(DefaultFont, HorizDir, 1);
 end;
 
 procedure TSVgaDriver.SetPixel(x, y: integer);
