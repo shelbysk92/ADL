@@ -14,7 +14,7 @@ type
   TSVgaDriver = object(TGraphicsDriver)
   private
     _viewPort: TRect;
-    SVgaDriver: integer;
+    _sVgaDriver: integer;
   public
     function GetPixel(x, y: integer): byte; virtual;
     procedure SetSVgaPalette(palette: TRgbPalette);

@@ -93,22 +93,36 @@ type
     function TextWidth(text: string): integer; virtual;
     function TextWidthW(text: TWideString): integer; virtual;
   end;
-  TGraphicsDriver = object(TObject)
+  PGraphicsSettings = ^TGraphicsSettings;
+  TGraphicsSettings = object(TBaseObject)
   private
     _viewPort: TRect;
   public
-    Modes: TGraphicsModeList;
-    Mode: TGraphicsMode;
     ForeColor: byte;
     BackColor: byte;
-    xPos, yPos: integer;
-    Error: TError;
-    function GetPixel(x, y: integer): byte; virtual;
-    function GetColor(color: TStandardColor; intensity: byte): byte;
-    procedure SetMode(newMode: TGraphicsMode); virtual;
-    procedure SetPixel(x, y: integer); virtual;
+    XPos, YPos: integer;
     procedure GetViewPort(var rect: TRect); virtual;
     procedure SetViewPort(rect: TRect); virtual;
+  end;
+  TGraphicsDriver = object(TObject)
+  private
+    _settings: PGraphicsSettings;
+  public
+    Modes: TGraphicsModeList;
+    Mode: TGraphicsMode;
+    Error: TError;
+    function GetPixel(x, y: integer): byte; virtual;
+    function GetColor(color: TStandardColor; intensity: byte): byte; virtual;
+    function ForeColor: byte; virtual;
+    function BackColor: byte; virtual;
+    function XPos: byte; virtual;
+    function YPos: byte; virtual;
+    procedure GetViewPort(var rect: TRect); virtual;
+    procedure SetViewPort(rect: TRect); virtual;
+    procedure SetForeColor(color: byte); virtual;
+    procedure SetBackColor(color: byte); virtual;
+    procedure SetMode(newMode: TGraphicsMode); virtual;
+    procedure SetPixel(x, y: integer); virtual;
     procedure MoveTo(x, y: integer); virtual;
     procedure LineTo(x, y: integer); virtual;
     procedure Line(x1, y1, x2, y2: integer); virtual;
@@ -133,21 +147,51 @@ begin
   ClearError(Error);
   Modes.Create('GraphicsModes');
   Mode.CreateEmpty;
-  _viewPort.CreateEmpty;
-  ForeColor := 0;
-  BackColor := 0;
-  xPos := 0;
-  yPos := 0;
+  _settings := New(PGraphicsSettings, Create);
+  _settings^._viewPort.CreateEmpty;
+  _settings^.ForeColor := ForeColor;
+  _settings^.BackColor := 0;
+  MoveTo(0, 0);
+end;
+
+function TGraphicsDriver.ForeColor: byte;
+begin
+  ForeColor := _settings^.ForeColor;
+end;
+
+function TGraphicsDriver.BackColor: byte;
+begin
+  BackColor := _settings^.BackColor;
+end;
+
+function TGraphicsDriver.XPos: byte;
+begin
+  XPos := _settings^.XPos;
+end;
+
+function TGraphicsDriver.YPos: byte;
+begin
+  YPos := _settings^.YPos;
 end;
 
 procedure TGraphicsDriver.GetViewPort(var rect: TRect);
 begin
-  rect := _viewPort;
+  _settings^.GetViewPort(rect);
 end;
 
 procedure TGraphicsDriver.SetViewPort(rect: TRect);
 begin
-  _viewPort := rect;
+  _settings^.SetViewPort(rect);
+end;
+
+procedure TGraphicsDriver.SetForeColor(color: byte);
+begin
+  _settings^.ForeColor := color;
+end;
+
+procedure TGraphicsDriver.SetBackColor(color: byte);
+begin
+  _settings^.BackColor := color;
 end;
 
 function TGraphicsDriver.GetPixel(x, y: integer): byte;
@@ -208,6 +252,7 @@ end;
 
 destructor TGraphicsDriver.Done;
 begin
+  Dispose(_settings, Done);
 end;
 
 function TGraphicsDriver.GetColor(color: TStandardColor; intensity: byte): byte;
@@ -317,6 +362,17 @@ end;
 function TFont.TextWidthW(text: TWideString): integer;
 begin
   TextWidthW := text.Len * 8;
+end;
+
+procedure TGraphicsSettings.GetViewPort(var rect: TRect);
+begin
+  rect.CreateEmpty;
+  rect := _viewPort;
+end;
+
+procedure TGraphicsSettings.SetViewPort(rect: TRect);
+begin
+  _viewPort := rect;
 end;
 
 end.
