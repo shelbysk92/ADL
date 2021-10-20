@@ -95,10 +95,8 @@ const
     kcCapsLock
   ];
 
-
   {cursor movement keys}
   { printscr/break }
-
 
 var
   _savedInterruptVector: pointer;
@@ -180,9 +178,7 @@ begin
     out 20h, al
   end;
 
-
-
-  TextColor(Black);
+{  TextColor(Black);
   TextBackground(LightGray);
   GotoXY(26, 3);
   Write('Key: ', IntToHex(data), '    ');
@@ -199,7 +195,7 @@ begin
   GotoXY(26, 11);
   Write('Control: ', ssControl in _shiftState, '    ');
   GotoXY(26, 12);
-  Write('Key Down: ', down, '    ');
+  Write('Key Down: ', down, '    ');}
 
   { clear bios keyboard buffer }
   _keyBufHead := $20;
@@ -220,8 +216,8 @@ begin
   _capsLock := _memShiftState and $0040 <> 0;
   _numLock := _memShiftState and $0020 <> 0;
   _insertMode := true;
-{  GetIntVec($09, _savedInterruptVector);
-  SetIntVec($09, @KeyboardHandler);}
+  GetIntVec($09, _savedInterruptVector);
+  SetIntVec($09, @KeyboardHandler);
 end;
 
 destructor TKeyboardDriver.Done;
@@ -240,7 +236,7 @@ end;
 
 function TKeyboardDriver.GetKey: word;
 begin
-  if not _keyPressed then exit;
+  if (not _keyPressed) then exit;
 end;
 
 procedure TKeyboardDriver.GetBuffer(var buffer: TKeyboardBuffer);

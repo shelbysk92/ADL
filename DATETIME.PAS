@@ -1,7 +1,7 @@
 {$IFDEF debug}
-  {$A+,B-,D+,F+,G+,I+,L+,N+,P+,Q+,R+,S+,V+,X+,Y+}
+  {$A+,B-,D+,E+,F+,G+,I+,L+,N+,O-,P+,Q+,R+,S+,V+,X+,Y+}
 {$ELSE}
-  {$A+,B-,D-,F+,G+,I+,L-,N-,P+,Q-,R-,S-,V+,X+,Y-}
+  {$A+,B-,D-,E+,F+,G+,I+,L-,N+,O-,P+,Q-,R-,S-,V+,X+,Y-}
 {$ENDIF}
 unit DateTime;
 

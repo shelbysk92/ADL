@@ -18,10 +18,10 @@ type
   public
     function GetPixel(x, y: integer): byte; virtual;
     procedure SetSVgaPalette(palette: TRgbPalette);
-    procedure InitBgiDriver(var driver: integer; bgiMode: integer; var error: TError);
-    procedure RegisterBgiDriver(newMode: integer;var error: TError);
+    procedure InitBgiDriver(var driver: integer; bgiMode: integer);
+    procedure RegisterBgiDriver(newMode: integer);
     procedure SetFillSolid(color: byte);  public
-    procedure SetMode(newMode: TGraphicsMode; var error: TError); virtual;
+    procedure SetMode(newMode: TGraphicsMode); virtual;
     procedure SetPixel(x, y: integer); virtual;
     procedure GetViewPort(var rect: TRect); virtual;
     procedure SetViewPort(rect: TRect); virtual;
@@ -62,7 +62,6 @@ var
 
 procedure TSVgaDriver.Init;
 var
-  error: TError;
   newMode: PGraphicsMode;
 begin
   TGraphicsDriver.Init;
@@ -207,12 +206,13 @@ function TSVgaDriver.GetPixel(x, y: integer): byte;
 begin
 end;
 
-procedure TSVgaDriver.SetMode(newMode: TGraphicsMode; var error: TError);
+procedure TSVgaDriver.SetMode(newMode: TGraphicsMode);
 var
   selectedMode: integer;
 begin
-  RegisterBgiDriver(newMode.AdditionalData, error);
-  InitBgiDriver(SVgaDriver, newMode.AdditionalData, error);
+  RegisterBgiDriver(newMode.AdditionalData);
+  InitBgiDriver(SVgaDriver, newMode.AdditionalData);
+  if (Error.ErrorCode <> ecNone) then exit;
   SetTextStyle(DefaultFont, HorizDir, 1);
   Mode := newMode;
 end;
@@ -223,6 +223,7 @@ end;
 
 procedure TSVgaDriver.DrawText(x, y: integer; text: string);
 begin
+  SetColor(ForeColor);
   OutTextXY(x, y, text);
 end;
 
@@ -410,17 +411,19 @@ begin
   SetSvgaPalette(palette);
 end;
 
-procedure TSVgaDriver.InitBgiDriver(var driver: integer; bgiMode: integer; var error: TError);
+procedure TSVgaDriver.InitBgiDriver(var driver: integer; bgiMode: integer);
 var
   result: integer;
 begin
-  ClearError(error);
   InitGraph(driver, bgiMode, AppDirectory + 'drivers\');
   result := GraphResult;
   if (result and $80 = $80) then
     result := result or $FF00;
   if (result <> 0) then
-    CreateError(error, ecGraphicsDriverError, esFatal);
+  begin
+    CreateError(Error, ecGraphicsDriverError, esFatal);
+    exit;
+  end;
   SetStandardPalette;
 end;
 
@@ -436,10 +439,9 @@ begin
     DetectVga256 := grError;
 end;
 
-procedure TSVgaDriver.RegisterBgiDriver(newMode: integer; var error: TError);
+procedure TSVgaDriver.RegisterBgiDriver(newMode: integer);
 begin
   _selectedMode := newMode;
-  ClearError(error);
   SVgaDriver := InstallUserDriver('SVGA256', @DetectVga256);
 end;
 

@@ -71,6 +71,7 @@ function GetExtension(const name: string): string;
 function UpperCase(const name: string): string;
 function NoError(var error: TError): boolean;
 function ExtractFilePath(filename: string): string;
+function Equal(var var1, var2; size: word): boolean;
 procedure CreateError(var error: TError; errorCode: TErrorCode; severity: TErrorSeverity);
 procedure ClearError(var error: TError);
 procedure SwapL(var long1: longint; var long2: longint);
@@ -78,6 +79,9 @@ procedure SwapW(var word1: word; var word2: word);
 procedure ClearVar(var variable);
 
 implementation
+
+uses
+  Objects;
 
 procedure ClearVar(var variable);
 begin
@@ -87,6 +91,27 @@ end;
 function NoError(var error: TError): boolean;
 begin
   NoError := error.ErrorCode = ecNone;
+end;
+
+function Equal(var var1, var2; size: word): boolean;
+var
+  index: integer;
+  byte1, byte2: PByte;
+begin
+  byte1 := @var1;
+  byte2 := @var2;
+  Equal := true;
+  if (size <= 0) then exit;
+  for index := 0 to size - 1 do
+  begin
+    if (byte1^ <> byte2^) then
+    begin
+      Equal := false;
+      exit;
+    end;
+    Inc(byte1);
+    Inc(byte2);
+  end;
 end;
 
 procedure SwapL(var long1: longint; var long2: longint);

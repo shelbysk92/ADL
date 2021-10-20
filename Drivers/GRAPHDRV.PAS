@@ -19,6 +19,7 @@ const
   Intensity50 = MaxIntensity div 2;
   Intensity25 = 4;
   Intensity75 = 14;
+  InterfaceReservedMem = 65536;
 
 type
   TStandardColor =
@@ -101,9 +102,10 @@ type
     ForeColor: byte;
     BackColor: byte;
     xPos, yPos: integer;
+    Error: TError;
     function GetPixel(x, y: integer): byte; virtual;
     function GetColor(color: TStandardColor; intensity: byte): byte;
-    procedure SetMode(newMode: TGraphicsMode; var error: TError); virtual;
+    procedure SetMode(newMode: TGraphicsMode); virtual;
     procedure SetPixel(x, y: integer); virtual;
     procedure GetViewPort(var rect: TRect); virtual;
     procedure SetViewPort(rect: TRect); virtual;
@@ -128,6 +130,7 @@ procedure TGraphicsDriver.Init;
 begin
   TObject.Init;
   TypeName := 'TGraphicsDriver';
+  ClearError(Error);
   Modes.Create('GraphicsModes');
   Mode.CreateEmpty;
   _viewPort.CreateEmpty;
@@ -151,7 +154,7 @@ function TGraphicsDriver.GetPixel(x, y: integer): byte;
 begin
 end;
 
-procedure TGraphicsDriver.SetMode(newMode: TGraphicsMode; var error: TError);
+procedure TGraphicsDriver.SetMode(newMode: TGraphicsMode);
 begin
 end;
 
