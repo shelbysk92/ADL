@@ -21,10 +21,6 @@ type
     Severity: TErrorSeverity;
     ErrorMessage: string;
   end;
-  dword = record
-    Low: word;
-    High: word;
-  end;
 
 const
   ecNone = 0;
@@ -75,14 +71,17 @@ function GetExtension(const name: string): string;
 function UpperCase(const name: string): string;
 function NoError(var error: TError): boolean;
 function ExtractFilePath(filename: string): string;
+function Equal(var var1, var2; size: word): boolean;
 procedure CreateError(var error: TError; errorCode: TErrorCode; severity: TErrorSeverity);
 procedure ClearError(var error: TError);
 procedure SwapL(var long1: longint; var long2: longint);
 procedure SwapW(var word1: word; var word2: word);
 procedure ClearVar(var variable);
-procedure SetDword(var dwordVar: dword; num: longint);
 
 implementation
+
+uses
+  Objects;
 
 procedure ClearVar(var variable);
 begin
@@ -94,15 +93,25 @@ begin
   NoError := error.ErrorCode = ecNone;
 end;
 
-procedure SetDword(var dwordVar: dword; num: longint);
+function Equal(var var1, var2; size: word): boolean;
 var
-  lowWord: word;
-  highWord: word;
+  index: integer;
+  byte1, byte2: PByte;
 begin
-  lowWord := num and $0000FFFF;
-  highWord := num shr 16;
-  dwordVar.Low := Lo(lowWord) or Hi(lowWord);
-  dwordVar.High := Lo(highWord) or Hi(highWord);
+  byte1 := @var1;
+  byte2 := @var2;
+  Equal := true;
+  if (size <= 0) then exit;
+  for index := 0 to size - 1 do
+  begin
+    if (byte1^ <> byte2^) then
+    begin
+      Equal := false;
+      exit;
+    end;
+    Inc(byte1);
+    Inc(byte2);
+  end;
 end;
 
 procedure SwapL(var long1: longint; var long2: longint);

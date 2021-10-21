@@ -14,6 +14,8 @@ uses
 type
   PByte = ^Byte;
   PBaseObject = ^TBaseObject;
+  TComparer = function(item1, item2: pointer): integer;
+  TPredicate = function(item: pointer; var value): boolean;
   TBaseObject = object
   private
   public
@@ -37,17 +39,25 @@ type
     _buffer: pointer;
     _count: integer;
     _capacity: integer;
+    _sorted: boolean;
+    _comparer: TComparer;
+    function GetSortedIndex(item: pointer): integer; virtual;
   public
     constructor CreateCapacity(newId: string; initialCapacity: integer);
     constructor Create(newId: string);
-    procedure Init; virtual;
+    constructor CreateSorted(newId: string; comparer: TComparer);
     destructor Done; virtual;
+    procedure Init; virtual;
+    procedure Sort(comparer: TComparer); virtual;
     function ToString: string; virtual;
     function GetItem(index: integer): pointer;
     function IndexOf(item: pointer): integer;
     function Add(item: pointer): integer;
-    function Count: integer;
-    function Capacity: integer;
+    function Count: integer; virtual;
+    function Capacity: integer; virtual;
+    function Sorted: boolean; virtual;
+    function Where(predicate: TPredicate; var value): PList;
+    procedure SetItem(index: integer; item: pointer);
     procedure SetCapacity(cap: integer);
     procedure Insert(index: integer; item: pointer);
     procedure Delete(index: integer);
@@ -124,6 +134,8 @@ begin
   Id := newId;
   _capacity := 0;
   SetCapacity(initialCapacity);
+  _sorted := false;
+  _comparer := nil;
   Init;
 end;
 
@@ -131,6 +143,18 @@ constructor TList.Create(newId: string);
 begin
   Id := newId;
   _capacity := 0;
+  SetCapacity(DefaultListCapacity);
+  _sorted := false;
+  _comparer := nil;
+  Init;
+end;
+
+constructor TList.CreateSorted(newId: string; comparer: TComparer);
+begin
+  Id := newId;
+  _capacity := 0;
+  _sorted := true;
+  _comparer := comparer;
   SetCapacity(DefaultListCapacity);
   Init;
 end;
@@ -148,9 +172,22 @@ begin
   TObject.Done;
 end;
 
+function TList.Sorted: boolean;
+begin
+  Sorted := _sorted;
+end;
+
 function TList.ToString: string;
 begin
   ToString := 'TList';
+end;
+
+procedure TList.SetItem(index: integer; item: pointer);
+var
+  itemLoc: pointer;
+begin
+  itemLoc := Pointer(LongInt(_buffer) + 4 * index);
+  Move(itemLoc^, item, 4);
 end;
 
 function TList.GetItem(index: integer): pointer;
@@ -192,19 +229,99 @@ begin
   until false;
 end;
 
+procedure TList.Sort(comparer: TComparer);
+  procedure QuickSort(lowIndex, highIndex: integer);
+  var
+    low, high: integer;
+    pivot, temp, lowItem, highItem: pointer;
+  begin
+    low := lowIndex;
+    high := highIndex;
+    lowItem := GetItem(lowIndex);
+    highItem := GetItem(highIndex);
+    pivot := GetItem((lowIndex + highIndex) div 2);
+    repeat
+      while comparer(lowItem, pivot) < 0 do
+        Inc(low) ;
+      while comparer(highItem, pivot) > 0 do
+        Dec(high);
+      if low <= high then
+      begin
+        temp := GetItem(low);
+        SetItem(low, GetItem(high));
+        SetItem(high, temp);
+        Inc(low) ;
+        Dec(high) ;
+      end;
+    until low > high;
+    if high > lowIndex then
+      QuickSort(lowIndex, high);
+    if low < high then
+      QuickSort(low, highIndex);
+  end;
+begin
+  if (_count = 0) then exit;
+  QuickSort(0, _count - 1);
+end;
+
+function TList.GetSortedIndex(item: pointer): integer;
+var
+  compared: integer;
+  upper, lower, middle: integer;
+  item2: pointer;
+begin
+  GetSortedIndex := 0;
+  if (_count = 0) then exit;
+  if (_count = 1) then
+  begin
+    if (TComparer(_comparer)(item, GetItem(0)) < 0) then
+      GetSortedIndex := 0
+    else
+      GetSortedIndex := 1;
+  end;
+  upper := _count;
+  lower := 0;
+  repeat
+    middle := (upper + lower) div 2;
+    item2 := GetItem(middle);
+    compared := TComparer(_comparer)(item, item2);
+    if (compared < 0) then
+      lower := middle
+    else if (compared > 0) then
+      upper := middle
+    else
+    begin
+      middle := upper;
+      break;
+    end;
+  until (upper = lower);
+  GetSortedIndex := middle;
+end;
+
 function TList.Add(item: pointer): integer;
 var
   newCap: word;
   itemLoc: PPointer;
+  index: integer;
 begin
   if (_count + 1 > _capacity) then
   begin
     newCap := _capacity * 2;
     SetCapacity(newCap);
   end;
-  itemLoc := pointer(LongInt(_buffer) + 4 * _count);
-  Inc(_count);
-  itemLoc^ := item;
+  index := _count;
+  if (_sorted) then
+  begin
+    index := GetSortedIndex(item);
+  end;
+  if (index = _count) then
+  begin
+    itemLoc := pointer(LongInt(_buffer) + 4 * index);
+    Inc(_count);
+    itemLoc^ := item;
+  end
+  else
+    Insert(index, item);
 end;
 
 procedure TList.Insert(index: integer; item: pointer);
@@ -248,6 +365,23 @@ begin
   _buffer := nil;
   _capacity := 0;
   SetCapacity(DefaultListCapacity);
+end;
+
+function TList.Where(predicate: TPredicate; var value): PList;
+var
+  result: PList;
+  index: integer;
+  item: pointer;
+begin
+  result := New(PList, Create(''));
+  Where := result;
+  if (_count = 0) then exit;
+  for index := 0 to _count - 1 do
+  begin
+    item := GetItem(index);
+    if predicate(item, value) then
+      result^.Add(item);
+  end;
 end;
 
 procedure TList.SetCapacity(cap: integer);
