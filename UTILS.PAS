@@ -39,24 +39,25 @@ const
   { Graphics errors }
   ecGraphicsNotSupported = 201;
   ecGraphicsDriverError = 202;
+  ecGraphicsModeNotFound = 203;
 
   { Memory errors }
   ecMemoryReferenceNotFound = 301;
-  ecInvalidMemoryReference = 202;
-  ecNotEnoughMemory = 203;
-  ecInvalidAllocSize = 204;
-  ecXmsNotInitialized = 205;
-  ecXmsNotSupported = 206;
-  ecXmsError = 207;
+  ecInvalidMemoryReference = 302;
+  ecNotEnoughMemory = 303;
+  ecInvalidAllocSize = 304;
+  ecXmsNotInitialized = 305;
+  ecXmsNotSupported = 306;
+  ecXmsError = 307;
 
   { Stream errors }
-  ecSeekPastStreamEnd = 300;
-  ecWritePastStreamEnd = 301;
-  ecReadPastStreamEnd = 302;
-  ecStreamSeekNotSupported = 303;
-  ecStreamWriteNotSupported = 304;
-  ecStreamReadNotSupported = 305;
-  ecStreamNotOpen = 306;
+  ecSeekPastStreamEnd = 400;
+  ecWritePastStreamEnd = 401;
+  ecReadPastStreamEnd = 402;
+  ecStreamSeekNotSupported = 403;
+  ecStreamWriteNotSupported = 404;
+  ecStreamReadNotSupported = 405;
+  ecStreamNotOpen = 406;
 
   HexDigits: String[16] = '0123456789ABCDEF';
 
@@ -180,6 +181,8 @@ begin
     ErrorMessage := 'XMS memory could not be initialized'
   else if (errorCode = ecXmsNotSupported) then
     ErrorMessage := 'XMS memory is not supported'
+  else if (errorCode = ecGraphicsModeNotFound) then
+    ErrorMessage := 'Graphics mode not found'
   else
     ErrorMessage := 'Unknown error';
 end;

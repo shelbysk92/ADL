@@ -17,7 +17,7 @@ type
   TGraphicsFactory = object(TBaseObject)
   public
     procedure Init; virtual;
-    procedure GetGraphicsDriver(driverId: TGraphDrivers; var driver);
+    procedure CreateGraphicsDriver(driverId: TGraphDrivers; var driver);
   end;
 
 implementation
@@ -26,7 +26,7 @@ procedure TGraphicsFactory.Init;
 begin
 end;
 
-procedure TGraphicsFactory.GetGraphicsDriver(driverId: TGraphDrivers; var driver);
+procedure TGraphicsFactory.CreateGraphicsDriver(driverId: TGraphDrivers; var driver);
 begin
   case driverId of
     gdVga256:

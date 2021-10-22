@@ -1,3 +1,4 @@
+{$I Compiler.inc}
 unit Streams;
 
 interface
@@ -21,7 +22,7 @@ type
     ssEndOfStream
   );
   PStream = ^TStream;
-  TStream = object(TBaseObject)
+  TStream = object(TObject)
   private
     _position: longint;
     _error: TError;
@@ -30,6 +31,8 @@ type
     _canRead, _canWrite, _canSeek: boolean;
     _closed: boolean;
     _buffers: PReferenceList;
+    _currentBuffer: integer;
+    _currentBufferPos: integer;
   public
     constructor Create;
     destructor Done; virtual;
@@ -65,6 +68,7 @@ type
     function ReadByte: byte; virtual;
     function WriteToStream(stream: TStream; count: longint): longint; virtual;
     function ReadFromStream(stream: TStream; count: longint): longint; virtual;
+    function PositionPtr: pointer;
     procedure Init; virtual;
     procedure SetLength(newLength: longint); virtual;
     procedure WriteByte; virtual;
@@ -253,9 +257,15 @@ function TMemoryStream.ReadFromStream(stream: TStream; count: longint): longint;
 begin
 end;
 
+function TMemoryStream.PositionPtr: pointer;
+begin
+
+end;
+
 procedure TMemoryStream.Init;
 begin
   TStream.Init;
+  TypeName := 'TMemoryStream';
 end;
 
 procedure TMemoryStream.SetLength(newLength: longint);

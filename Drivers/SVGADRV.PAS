@@ -1,3 +1,4 @@
+{$I Compiler.inc}
 unit SVgaDrv;
 
 interface
@@ -14,7 +15,7 @@ type
   TSVgaDriver = object(TGraphicsDriver)
   private
     _viewPort: TRect;
-    _sVgaDriver: integer;
+    _svgaDriver: integer;
   public
     function GetPixel(x, y: integer): byte; virtual;
     procedure SetSVgaPalette(palette: TRgbPalette);
@@ -66,7 +67,7 @@ var
 begin
   TGraphicsDriver.Init;
   TypeName := 'TSVgaDriver';
-  SVgaDriver := 0;
+  _sVgaDriver := 0;
   FillChar(_solidPattern, SizeOf(_solidPattern), $FF);
 
   newMode := New(PGraphicsMode, Create('SVGA320x200x256'));
@@ -212,7 +213,7 @@ var
   rect: TRect;
 begin
   RegisterBgiDriver(newMode.AdditionalData);
-  InitBgiDriver(SVgaDriver, newMode.AdditionalData);
+  InitBgiDriver(_svgaDriver, newMode.AdditionalData);
   if (Error.ErrorCode <> ecNone) then exit;
   Mode := newMode;
   rect.Create(0, 0, mode.Width, mode.Height);
@@ -445,7 +446,7 @@ end;
 procedure TSVgaDriver.RegisterBgiDriver(newMode: integer);
 begin
   _selectedMode := newMode;
-  SVgaDriver := InstallUserDriver('SVGA256', @DetectVga256);
+  _svgaDriver := InstallUserDriver('SVGA256', @DetectVga256);
 end;
 
 procedure TSVgaDriver.SetFillSolid(color: byte);
