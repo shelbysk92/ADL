@@ -87,6 +87,14 @@ type
     procedure Assign(source: TPersistent); virtual;
     procedure AssignTo(dest: TPersistent); virtual;
   end;
+  PStack = ^TStack;
+  TStack = object(TObjectList)
+  private
+  public
+    procedure Init; virtual;
+    function Push(obj: PObject): integer;
+    function Pop: PObject;
+  end;
 
 var
   OnAllocationError: PAllocationError;
@@ -495,14 +503,23 @@ var
   obj: PObject;
 begin
   obj := GetItem(index);
-  Dispose(obj);
+  if (DisposeObjects) then
+    Dispose(obj);
+  TList.Delete(index);
 end;
 
 procedure TObjectList.Clear;
 var
-  index: word;
+  index: integer;
   item: PObject;
 begin
+  if (DisposeObjects) and (_count > 0) then
+  begin
+    for index := 0 to _count - 1 do
+    begin
+    Dispose(GetItem(index), Done);
+    end;
+  end;
   TList.Clear;
 end;
 
@@ -513,6 +530,26 @@ end;
 procedure TPersistent.AssignTo(dest: TPersistent);
 begin
 end;
+
+procedure TStack.Init;
+begin
+  TObjectList.Init;
+  DisposeObjects := true;
+end;
+
+function TStack.Push(obj: PObject): integer;
+begin
+  Push := Add(obj);
+end;
+
+function TStack.Pop: PObject;
+begin
+  Pop := nil;
+  if (_count = 0) then exit;
+  Pop := GetItem(_count - 1);
+  Delete(_count - 1);
+end;
+
 
 begin
   OnAllocationError := nil;
