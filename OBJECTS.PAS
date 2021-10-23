@@ -84,8 +84,9 @@ type
   PPersistent = ^TPersistent;
   TPersistent = object(TObject)
   public
-    procedure Assign(source: TPersistent); virtual;
-    procedure AssignTo(dest: TPersistent); virtual;
+    procedure Init; virtual;
+    procedure Assign(var source: TPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
   end;
   PStack = ^TStack;
   TStack = object(TObjectList)
@@ -502,6 +503,7 @@ procedure TObjectList.Delete(index: integer);
 var
   obj: PObject;
 begin
+  if (_count = 0) then exit;
   obj := GetItem(index);
   if (DisposeObjects) then
     Dispose(obj);
@@ -523,18 +525,24 @@ begin
   TList.Clear;
 end;
 
-procedure TPersistent.Assign(source: TPersistent);
+procedure TPersistent.Init;
+begin
+  TObject.Init;
+  TypeName := 'TPersistent';
+end;
+
+procedure TPersistent.Assign(var source: TPersistent);
 begin
 end;
 
-procedure TPersistent.AssignTo(dest: TPersistent);
+procedure TPersistent.AssignTo(var dest: TPersistent);
 begin
 end;
 
 procedure TStack.Init;
 begin
   TObjectList.Init;
-  DisposeObjects := true;
+  DisposeObjects := false;
 end;
 
 function TStack.Push(obj: PObject): integer;
@@ -549,7 +557,6 @@ begin
   Pop := GetItem(_count - 1);
   Delete(_count - 1);
 end;
-
 
 begin
   OnAllocationError := nil;

@@ -89,19 +89,23 @@ type
     function TextWidthW(text: TWideString): integer; virtual;
   end;
   PGraphicsSettings = ^TGraphicsSettings;
-  TGraphicsSettings = object(TBaseObject)
+  TGraphicsSettings = object(TPersistent)
   private
     _viewPort: TRect;
   public
     ForeColor: byte;
     BackColor: byte;
     XPos, YPos: integer;
+    procedure Init; virtual;
     procedure GetViewPort(var rect: TRect); virtual;
     procedure SetViewPort(rect: TRect); virtual;
+    procedure Assign(var source: TPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
   end;
   TGraphicsDriver = object(TObject)
   private
     _settings: PGraphicsSettings;
+    _stateStack: TStack;
   public
     Modes: TGraphicsModeList;
     Mode: TGraphicsMode;
@@ -129,6 +133,8 @@ type
     procedure DrawText(x, y: integer; text: string); virtual;
     procedure DrawTextW(x, y: integer; text: TWideString); virtual;
     procedure SetStandardPalette; virtual;
+    procedure PushState; virtual;
+    procedure PopState; virtual;
     procedure Init; virtual;
     destructor Done; virtual;
   end;
@@ -145,10 +151,8 @@ begin
   ClearError(Error);
   Modes.Create('GraphicsModes');
   Mode.CreateEmpty;
-  _settings := New(PGraphicsSettings, Create);
-  _settings^._viewPort.CreateEmpty;
-  _settings^.ForeColor := ForeColor;
-  _settings^.BackColor := 0;
+  _settings := New(PGraphicsSettings, Create('GraphSettings'));
+  _stateStack.Create('StateStack');
   MoveTo(0, 0);
 end;
 
@@ -248,8 +252,29 @@ procedure TGraphicsDriver.SetStandardPalette;
 begin
 end;
 
+procedure TGraphicsDriver.PushState;
+var
+  settings: PGraphicsSettings;
+begin
+  settings := New(PGraphicsSettings, Create('StackSettings'));
+  settings^.Assign(_settings^);
+  _stateStack.Push(settings);
+end;
+
+procedure TGraphicsDriver.PopState;
+var
+  settings: PGraphicsSettings;
+begin
+  settings := PGraphicsSettings(_stateStack.Pop);
+  if (settings = nil) then exit;
+  _settings^.Assign(settings^);
+  Graphics.SetViewPort(_settings^._viewPort);
+  Dispose(settings, Done);
+end;
+
 destructor TGraphicsDriver.Done;
 begin
+  _stateStack.Done;
   Dispose(_settings, Done);
 end;
 
@@ -331,6 +356,8 @@ end;
 
 procedure TFont.Init;
 begin
+  TObject.Init;
+  TypeName := 'TFont';
   _fontData := nil;
   _maxWidth := 8;
   Version := 1.0;
@@ -362,6 +389,17 @@ begin
   TextWidthW := text.Len * 8;
 end;
 
+procedure TGraphicsSettings.Init;
+begin
+  TPersistent.Init;
+  TypeName := 'TGraphicsSettings';
+  _viewPort.CreateEmpty;
+  ForeColor := 0;
+  BackColor := 0;
+  XPos := 0;
+  YPos := 0;
+end;
+
 procedure TGraphicsSettings.GetViewPort(var rect: TRect);
 begin
   rect.CreateEmpty;
@@ -371,6 +409,30 @@ end;
 procedure TGraphicsSettings.SetViewPort(rect: TRect);
 begin
   _viewPort := rect;
+end;
+
+procedure TGraphicsSettings.Assign(var source: TPersistent);
+var
+  settings: PGraphicsSettings;
+begin
+  settings := PGraphicsSettings(@source);
+  _viewPort := settings^._viewPort;
+  ForeColor := settings^.ForeColor;
+  BackColor := settings^.BackColor;
+  XPos := settings^.XPos;
+  YPos := settings^.YPos;
+end;
+
+procedure TGraphicsSettings.AssignTo(var dest: TPersistent);
+var
+  settings: PGraphicsSettings;
+begin
+  settings := PGraphicsSettings(@dest);
+  settings^._viewPort := _viewPort;
+  settings^.ForeColor := ForeColor;
+  settings^.BackColor := BackColor;
+  settings^.XPos := XPos;
+  settings^.YPos := YPos;
 end;
 
 end.

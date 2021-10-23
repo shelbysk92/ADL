@@ -192,6 +192,7 @@ end;
 procedure TSVgaDriver.SetViewPort(rect: TRect);
 var
   right, bottom, x, y, width, height: integer;
+  screenRect, result: TRect;
 begin
   TGraphicsDriver.SetViewPort(rect);
   right := rect.Right;
@@ -200,7 +201,9 @@ begin
   y := rect.Y;
   width := rect.Width;
   height := rect.height;
-  Graph.SetViewPort(rect.X, rect.Y, rect.Right, rect.Bottom, true);
+  screenRect.Create(0, 0, Mode.Width, Mode.Height);
+  rect.Intersection(ScreenRect, result);
+  Graph.SetViewPort(result.X, result.Y, result.Right, result.Bottom, true);
 end;
 
 function TSVgaDriver.GetPixel(x, y: integer): byte;
