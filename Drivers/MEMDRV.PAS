@@ -67,6 +67,7 @@ type
     function XmsVersion: real;
     function References: PReferenceList;
     function BufferSize: longint;
+    function CurrentReference: PReference;
     procedure InitXms;
     procedure Init; virtual;
     procedure SetCurrentReference(reference: PReference); virtual;
@@ -260,6 +261,11 @@ begin
     pop  es
   end;
   GetXmsControlFunction := result;
+end;
+
+function TMemDrv.CurrentReference: PReference;
+begin
+  CurrentReference := _currentReference;
 end;
 
 procedure TMemDrv.MoveReference(reference: PReference; var moveRecord);

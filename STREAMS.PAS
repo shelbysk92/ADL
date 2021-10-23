@@ -7,6 +7,7 @@ uses
   Dos,
   Objects,
   Utils,
+  TPAlloc,
   MemDrv;
 
 type
@@ -68,13 +69,16 @@ type
     function ReadByte: byte; virtual;
     function WriteToStream(stream: TStream; count: longint): longint; virtual;
     function ReadFromStream(stream: TStream; count: longint): longint; virtual;
-    function PositionPtr: pointer;
+    function  Buffer: pointer;
     procedure Init; virtual;
     procedure SetLength(newLength: longint); virtual;
     procedure WriteByte; virtual;
   end;
 
 implementation
+
+const
+  MaxAlloc = 65528;
 
 constructor TStream.Create;
 begin
@@ -187,7 +191,6 @@ var
   allocated: longint;
   maxAllocSize: longint;
   newSize: longint;
-  maxAlloc: longint;
 begin
   _position := 0;
   ClearError(_error);
@@ -203,8 +206,7 @@ begin
   allocated := 0;
   while (allocated < size) do
   begin
-    maxAlloc := Memory.BufferSize;
-    newSize := MinL(maxAlloc, size - allocated);
+    newSize := MinL(MaxAlloc, size - allocated);
     Memory.Alloc(reference, newSize);
     if (Memory.Error.ErrorCode <> ecNone) then
     begin
@@ -257,9 +259,18 @@ function TMemoryStream.ReadFromStream(stream: TStream; count: longint): longint;
 begin
 end;
 
-function TMemoryStream.PositionPtr: pointer;
+function TMemoryStream.Buffer: pointer;
+var
+  bufferPos: longint;
+  bufferIndex: integer;
 begin
-
+  Buffer := nil;
+  if (_buffers^.Count = 0) then exit;
+  bufferIndex := _position div MaxAlloc;
+  bufferPos := _position mod MaxAlloc;
+  if (Memory.CurrentReference <> _buffers^.GetItem(bufferIndex)) then
+    Memory.SetCurrentReference(_buffers^.GetItem(bufferIndex));
+  Buffer := LinearToPointer(Memory.CurrentReference^.Offset + bufferPos);
 end;
 
 procedure TMemoryStream.Init;
