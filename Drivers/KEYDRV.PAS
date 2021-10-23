@@ -1,3 +1,4 @@
+{$I Compiler.inc}
 unit KeyDrv;
 
 interface

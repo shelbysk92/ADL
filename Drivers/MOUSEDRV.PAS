@@ -1,3 +1,4 @@
+{$I Compiler.inc}
 unit MouseDrv;
 
 interface
@@ -25,6 +26,7 @@ procedure ShowMouse;
 procedure HideMouse;
 procedure GetMouseState(var state: TMouseState);
 procedure InitMouseCursor;
+procedure SetMouseResolution(width, height: word);
 
 implementation
 
@@ -150,6 +152,22 @@ begin;
   Intr(MouseInterrupt, reg);
 end;
 
+procedure SetMouseResolution(width, height: word);
+begin
+  Dec(width, 1);
+  Dec(height, 1);
+  asm
+    mov  ax, 7h
+    mov  cx, 0
+    mov  dx, [width]
+    int  33h
+    mov  ax, 8h
+    mov  cx, 0
+    mov  dx, [height]
+    int  33h
+  end;
+end;
+
 procedure GetMouseState(var state: TMouseState);
 var
   reg: Registers;
@@ -158,8 +176,8 @@ begin
   FillChar(state, SizeOf(state), 0);
   reg.AX := GetMouseStatusCode;
   Intr(MouseInterrupt, reg);
-  state.X := reg.CX div 8;
-  state.Y := reg.DX div 8;
+  state.X := reg.CX;
+  state.Y := reg.DX;
   if (reg.BX and $01 > 0) then
     Include(state.ButtonState, bsLeft);
   if (reg.BX and $02 > 0) then

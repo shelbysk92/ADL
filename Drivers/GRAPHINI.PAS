@@ -1,3 +1,4 @@
+{$I Compiler.inc}
 unit GraphIni;
 
 interface

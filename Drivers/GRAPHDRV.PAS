@@ -285,7 +285,7 @@ begin
     GetColor := 0;
     exit;
   end;
-  GetColor := 21 + ord(color) * 17 + intensity;
+  GetColor := 21 + ord(color) * 18 + intensity;
 end;
 
 constructor TGraphicsMode.CreateEmpty;

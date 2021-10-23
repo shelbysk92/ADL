@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A+,B-,D+,E+,E+,G+,I+,L+,N-,P+,Q+,R+,S+,V+,X+,Y+}
-{$ELSE}
-  {$A+,B-,D-,F+,E+,G+,I+,L-,N-,P+,Q-,R-,S-,V+,X+,Y-}
-{$ENDIF}
+{$I Compiler.inc}
 unit MemDrv;
 
 interface
@@ -440,13 +436,13 @@ end;
 procedure TMemDrv.SetCurrentReference(reference: PReference);
 begin
   if (_currentReference = reference) then exit;
+  _currentReference := reference;
   if (not reference^.Xms) then exit;
   MoveToConventional(reference);
   if (error.ErrorCode <> ecNone) then
   begin
     exit;
   end;
-  _currentReference := reference;
 end;
 
 function TMemDrv.XmsAlloc(size: longint): word;
