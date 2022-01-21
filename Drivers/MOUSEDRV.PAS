@@ -159,11 +159,11 @@ begin
   asm
     mov  ax, 7h
     mov  cx, 0
-    mov  dx, word ptr [width]
+    mov  dx, [width]
     int  33h
     mov  ax, 8h
     mov  cx, 0
-    mov  dx, word ptr [height]
+    mov  dx, [height]
     int  33h
   end;
 end;

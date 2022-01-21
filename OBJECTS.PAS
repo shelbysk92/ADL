@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A+,B-,D+,F+,G+,I+,L+,N+,P+,Q+,R+,S+,V+,X+,Y+}
-{$ELSE}
-  {$A+,B-,D-,F+,G+,I+,L-,N+,P+,Q-,R-,S-,V+,X+,Y-}
-{$ENDIF}
+{$I Compiler.inc}
 unit Objects;
 
 interface
@@ -12,7 +8,8 @@ uses
   Utils;
 
 type
-  PByte = ^Byte;
+  PByte = ^byte;
+  PWord = ^word;
   PBaseObject = ^TBaseObject;
   TComparer = function(item1, item2: pointer): integer;
   TPredicate = function(item: pointer; var value): boolean;

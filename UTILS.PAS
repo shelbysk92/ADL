@@ -77,17 +77,11 @@ procedure CreateError(var error: TError; errorCode: TErrorCode; severity: TError
 procedure ClearError(var error: TError);
 procedure SwapL(var long1: longint; var long2: longint);
 procedure SwapW(var word1: word; var word2: word);
-procedure ClearVar(var variable);
 
 implementation
 
 uses
   Objects;
-
-procedure ClearVar(var variable);
-begin
-  FillChar(variable, SizeOf(variable), 0);
-end;
 
 function NoError(var error: TError): boolean;
 begin

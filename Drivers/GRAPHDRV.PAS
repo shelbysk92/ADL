@@ -6,15 +6,18 @@ interface
 uses
   Objects,
   Utils,
+  Dos,
   Drawing,
   WideStr,
   Streams;
 
 const
+  MinIntensity = 1;
   MaxIntensity = 18;
-  Intensity50 = MaxIntensity div 2;
+  Intensity50 = 9;
   Intensity25 = 4;
   Intensity75 = 14;
+  TransparentColor = 1;
 
 type
   TStandardColor =
@@ -91,14 +94,11 @@ type
   PGraphicsSettings = ^TGraphicsSettings;
   TGraphicsSettings = object(TPersistent)
   private
-    _viewPort: TRect;
   public
     ForeColor: byte;
     BackColor: byte;
     XPos, YPos: integer;
     procedure Init; virtual;
-    procedure GetViewPort(var rect: TRect); virtual;
-    procedure SetViewPort(rect: TRect); virtual;
     procedure Assign(var source: TPersistent); virtual;
     procedure AssignTo(var dest: TPersistent); virtual;
   end;
@@ -106,9 +106,10 @@ type
   private
     _settings: PGraphicsSettings;
     _stateStack: TStack;
+    _oldMode: byte;
   public
     Modes: TGraphicsModeList;
-    Mode: TGraphicsMode;
+    Mode: PGraphicsMode;
     Error: TError;
     function GetPixel(x, y: integer): byte; virtual;
     function GetColor(color: TStandardColor; intensity: byte): byte; virtual;
@@ -116,11 +117,10 @@ type
     function BackColor: byte; virtual;
     function XPos: byte; virtual;
     function YPos: byte; virtual;
-    procedure GetViewPort(var rect: TRect); virtual;
-    procedure SetViewPort(rect: TRect); virtual;
+    function GetImage(rect: TRect): PByte; virtual;
     procedure SetForeColor(color: byte); virtual;
     procedure SetBackColor(color: byte); virtual;
-    procedure SetMode(newMode: TGraphicsMode); virtual;
+    procedure SetMode(newMode: PGraphicsMode); virtual;
     procedure SetPixel(x, y: integer); virtual;
     procedure MoveTo(x, y: integer); virtual;
     procedure LineTo(x, y: integer); virtual;
@@ -129,10 +129,11 @@ type
     procedure VLine(x, y, height: integer); virtual;
     procedure Rectangle(x1, y1, x2, y2: integer); virtual;
     procedure FillRect(rect: TRect); virtual;
-    procedure DrawImage(x, y: integer; image: PByte); virtual;
+    procedure DrawImage(sourceRect, destRect: TRect; image: PByte); virtual;
     procedure DrawText(x, y: integer; text: string); virtual;
     procedure DrawTextW(x, y: integer; text: TWideString); virtual;
     procedure SetStandardPalette; virtual;
+    procedure SetRgbPalette(palette: TRgbPalette);
     procedure PushState; virtual;
     procedure PopState; virtual;
     procedure Init; virtual;
@@ -145,12 +146,21 @@ var
 implementation
 
 procedure TGraphicsDriver.Init;
+var
+  oldMode: byte;
 begin
   TObject.Init;
   TypeName := 'TGraphicsDriver';
+  asm
+    mov   al, 00h
+    mov   ah, 0Fh
+    int   10h
+    mov   [oldMode], al
+  end;
+  _oldMode := oldMode;
   ClearError(Error);
   Modes.Create('GraphicsModes');
-  Mode.CreateEmpty;
+  Mode^.CreateEmpty;
   _settings := New(PGraphicsSettings, Create('GraphSettings'));
   _stateStack.Create('StateStack');
   MoveTo(0, 0);
@@ -176,16 +186,6 @@ begin
   YPos := _settings^.YPos;
 end;
 
-procedure TGraphicsDriver.GetViewPort(var rect: TRect);
-begin
-  _settings^.GetViewPort(rect);
-end;
-
-procedure TGraphicsDriver.SetViewPort(rect: TRect);
-begin
-  _settings^.SetViewPort(rect);
-end;
-
 procedure TGraphicsDriver.SetForeColor(color: byte);
 begin
   _settings^.ForeColor := color;
@@ -200,7 +200,7 @@ function TGraphicsDriver.GetPixel(x, y: integer): byte;
 begin
 end;
 
-procedure TGraphicsDriver.SetMode(newMode: TGraphicsMode);
+procedure TGraphicsDriver.SetMode(newMode: PGraphicsMode);
 begin
 end;
 
@@ -236,7 +236,11 @@ procedure TGraphicsDriver.FillRect(rect: TRect);
 begin
 end;
 
-procedure TGraphicsDriver.DrawImage(x, y: integer; image: PByte);
+procedure TGraphicsDriver.DrawImage(sourceRect, destRect: TRect; image: PByte);
+begin
+end;
+
+function TGraphicsDriver.GetImage(rect: TRect): PByte;
 begin
 end;
 
@@ -249,7 +253,136 @@ begin
 end;
 
 procedure TGraphicsDriver.SetStandardPalette;
+var
+  palette: TRgbPalette;
+  colorIndex: TStandardColor;
+  shadeIndex, shade: integer;
+  paletteIndex: integer;
+  index: integer;
 begin
+  for Index := 0 to 21 do
+  begin
+    palette[index].Red := 0;
+    palette[index].Green := 0;
+    palette[index].Blue := 0;
+  end;
+  paletteIndex := 22;
+
+  for colorIndex := Low(TStandardColor) to High(TStandardColor) do
+  begin
+    for shadeIndex := 1 to 18 do
+    begin
+      shade := shadeIndex * 14;
+      case colorIndex of
+        scWhite:
+        begin
+          palette[paletteIndex].Red := shade;
+          palette[paletteIndex].Green := shade;
+          palette[paletteIndex].Blue := shade;
+        end;
+        scRed:
+        begin
+          palette[paletteIndex].Red := shade;
+          palette[paletteIndex].Green := 0;
+          palette[paletteIndex].Blue := 0;
+        end;
+        scGreen:
+        begin
+          palette[paletteIndex].Red := 0;
+          palette[paletteIndex].Green := shade;
+          palette[paletteIndex].Blue := 0;
+        end;
+        scBlue:
+        begin
+          palette[paletteIndex].Red := 0;
+          palette[paletteIndex].Green := 0;
+          palette[paletteIndex].Blue := shade;
+        end;
+        scYellow:
+        begin
+          palette[paletteIndex].Red := shade;
+          palette[paletteIndex].Green := shade;
+          palette[paletteIndex].Blue := 0;
+        end;
+        scMagenta:
+        begin
+          palette[paletteIndex].Red := shade;
+          palette[paletteIndex].Green := 0;
+          palette[paletteIndex].Blue := shade;
+        end;
+        scCyan:
+        begin
+          palette[paletteIndex].Red := 0;
+          palette[paletteIndex].Green := shade;
+          palette[paletteIndex].Blue := shade;
+        end;
+        scOrange:
+        begin
+          palette[paletteIndex].Red := shade;
+          palette[paletteIndex].Green := shade div 2;
+          palette[paletteIndex].Blue := 0;
+        end;
+        scChartreuse:
+        begin
+          palette[paletteIndex].Red := shade div 2;
+          palette[paletteIndex].Green := shade;
+          palette[paletteIndex].Blue := 0;
+        end;
+        scSpringGreen:
+        begin
+          palette[paletteIndex].Red := shade div 2;
+          palette[paletteIndex].Green := shade;
+          palette[paletteIndex].Blue := shade div 2;
+        end;
+        scAzure:
+        begin
+          palette[paletteIndex].Red := shade div 3;
+          palette[paletteIndex].Green := shade div 3;
+          palette[paletteIndex].Blue := shade;
+        end;
+        scViolet:
+        begin
+          palette[paletteIndex].Red := shade div 2;
+          palette[paletteIndex].Green := 0;
+          palette[paletteIndex].Blue := shade;
+        end;
+        scPink:
+        begin
+          palette[paletteIndex].Red := shade;
+          palette[paletteIndex].Green := shade div 3;
+          palette[paletteIndex].Blue := shade;
+        end;
+      end;
+      Inc(paletteIndex);
+    end;
+  end;
+  SetRgbPalette(palette);
+end;
+
+procedure TGraphicsDriver.SetRgbPalette(palette: TRgbPalette);
+var
+  reg: Registers;
+  index: integer;
+begin
+  for index := 0 to 255 do
+  begin
+    with palette[index] do
+    begin
+      Red := Red shr 2;
+      Green := Green shr 2;
+      Blue := Blue shr 2;
+    end;
+  end;
+  FillChar(reg, SizeOf(reg), 0);
+  with reg do
+  begin
+    AX := $1012;
+    BX := $0;
+    CX := $FF;
+    ES := Seg(palette);
+    DX := Ofs(palette);
+    Intr($10, reg);
+  end;
 end;
 
 procedure TGraphicsDriver.PushState;
@@ -268,12 +401,19 @@ begin
   settings := PGraphicsSettings(_stateStack.Pop);
   if (settings = nil) then exit;
   _settings^.Assign(settings^);
-  Graphics.SetViewPort(_settings^._viewPort);
   Dispose(settings, Done);
 end;
 
 destructor TGraphicsDriver.Done;
+var
+  oldMode: byte;
 begin
+  oldMode := _oldMode;
+  asm
+    mov ah, 00h
+    mov al, [oldMode]
+    int 10h
+  end;
   _stateStack.Done;
   Dispose(_settings, Done);
 end;
@@ -393,22 +533,10 @@ procedure TGraphicsSettings.Init;
 begin
   TPersistent.Init;
   TypeName := 'TGraphicsSettings';
-  _viewPort.CreateEmpty;
   ForeColor := 0;
   BackColor := 0;
   XPos := 0;
   YPos := 0;
-end;
-
-procedure TGraphicsSettings.GetViewPort(var rect: TRect);
-begin
-  rect.CreateEmpty;
-  rect := _viewPort;
-end;
-
-procedure TGraphicsSettings.SetViewPort(rect: TRect);
-begin
-  _viewPort := rect;
 end;
 
 procedure TGraphicsSettings.Assign(var source: TPersistent);
@@ -416,7 +544,6 @@ var
   settings: PGraphicsSettings;
 begin
   settings := PGraphicsSettings(@source);
-  _viewPort := settings^._viewPort;
   ForeColor := settings^.ForeColor;
   BackColor := settings^.BackColor;
   XPos := settings^.XPos;
@@ -428,7 +555,6 @@ var
   settings: PGraphicsSettings;
 begin
   settings := PGraphicsSettings(@dest);
-  settings^._viewPort := _viewPort;
   settings^.ForeColor := ForeColor;
   settings^.BackColor := BackColor;
   settings^.XPos := XPos;

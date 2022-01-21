@@ -1,3 +1,5 @@
+
+
 {$I Compiler.inc}
 unit SVgaDrv;
 
@@ -14,18 +16,14 @@ type
   PSVgaDriver = ^TSVgaDriver;
   TSVgaDriver = object(TGraphicsDriver)
   private
-    _viewPort: TRect;
     _svgaDriver: integer;
+    _frameBuffer: PByte;
+    procedure SwitchBank(bank: word);
   public
     function GetPixel(x, y: integer): byte; virtual;
-    procedure SetSVgaPalette(palette: TRgbPalette);
-    procedure InitBgiDriver(var driver: integer; bgiMode: integer);
-    procedure RegisterBgiDriver(newMode: integer);
-    procedure SetFillSolid(color: byte);  public
-    procedure SetMode(newMode: TGraphicsMode); virtual;
+    function GetImage(rect: TRect): PByte; virtual;
+    procedure SetMode(newMode: PGraphicsMode); virtual;
     procedure SetPixel(x, y: integer); virtual;
-    procedure GetViewPort(var rect: TRect); virtual;
-    procedure SetViewPort(rect: TRect); virtual;
     procedure DrawText(x, y: integer; text: string); virtual;
     procedure DrawTextW(x, y: integer; text: TWideString); virtual;
     procedure MoveTo(x, y: integer); virtual;
@@ -35,8 +33,7 @@ type
     procedure HLine(x, y, width: integer); virtual;
     procedure VLine(x, y, height: integer); virtual;
     procedure FillRect(rect: TRect); virtual;
-    procedure DrawImage(x, y: integer; image: PByte); virtual;
-    procedure SetStandardPalette; virtual;
+    procedure DrawImage(sourceRect, destRect: TRect; image: PByte); virtual;
     procedure Init; virtual;
     destructor Done; virtual;
   end;
@@ -44,194 +41,217 @@ type
 implementation
 
 uses
-  Graph,
   Globals,
   Dos;
 
-const
-  SVga320x200x256 = 0;
-  SVga640x400x256 = 1;
-  SVga640x480x256 = 2;
-  SVga800x600x256 = 3;
-  SVga1024x768x256 = 4;
-  SVga640x350x256 = 5;
-  SVga1280x1024x256 = 6;
+type
+  PVbeInfo = ^TVbeInfo;
+  TVbeInfo = record
+    VbeSignature: array[0..3] of char;
+    VbeVersion: word;
+    OemStringPtr: pointer;
+    Capabilities: longint;
+    VideoModes: pointer;
+    TotalMemory: word;
+    SoftwareRevision: word;
+    Vendor: longint;
+    ProductName: pointer;
+    ProductRevision: pointer;
+    Reserved: array[0..221] of byte;
+    OemData: array[0..255] of byte
+  end;
+  PVbeMode = ^TVbeMode;
+  TVbeMode = record
+    Attributes: word; {depricated; bit 7 indicates linear fram buffer support}
+    WindowA: byte; {depricated}
+    WindowB: byte; {depricated}
+    Granularity: word; {depricated}
+    WidowSize: word;
+    SegmentA: word;
+    SegmentB: word;
+    WinFuncPtr: pointer; {depricated}
+    Pitch: word; {bytes per horizontal line}
+    Width: word; {width in pixels}
+    Height: word; {height in pixels}
+    Wchar: char; {unused}
+    Ychar: char; {unused}
+    Planes: byte;
+    Bpp: byte; {bits per pixel}
+    Banks: byte; {deprecated; total number of banks in this mode}
+    MemoryModel: byte;
+    BankSize: byte; {deprecated; size of bank, usually 64k, could be 16k}
+    ImagePages: byte;
+    Reserved0: byte;
+    RedMask: byte;
+    RedPosition: byte;
+    GreenMask: byte;
+    GreenPosition: byte;
+    BlueMask: byte;
+    BluePosition: byte;
+    ReservedMask: byte;
+    ReservedPosition: byte;
+    DirectColorAttributes: byte;
+    FrameBuffer: pointer; {physical address of the fram buffer}
+    OffScreenMemOffset: longint;
+    OffScreenMemSize: word;
+    Reserved1: array[0..205] of byte;
+  end;
+  PSVgaMode = ^TSvgaMode;
+  TSvgaMode = object(TGraphicsMode)
+  private
+    _vbeMode: TVbeMode;
+  public
+    procedure Init; virtual;
+  end;
 
-var
-  _solidPattern: FillPatternType;
-  _selectedMode: integer;
+procedure TSvgaMode.Init;
+begin
+  TGraphicsMode.Init;
+  FillChar(_vbeMode, SizeOf(_vbeMode), 0);
+end;
 
 procedure TSVgaDriver.Init;
 var
-  newMode: PGraphicsMode;
+  newMode: PSvgaMode;
+  oldMode: byte;
+  info: TVbeInfo;
+  segm, offs: word;
+  supported, status: byte;
+  modePtr: PWord;
+  modeInfo: TVbeMode;
+  vbeMode: word;
+  colors: string;
 begin
   TGraphicsDriver.Init;
   TypeName := 'TSVgaDriver';
-  _sVgaDriver := 0;
-  FillChar(_solidPattern, SizeOf(_solidPattern), $FF);
-
-  newMode := New(PGraphicsMode, Create('SVGA320x200x256'));
-  with newMode^ do
-  begin
-    AdditionalData := SVga320x200x256;
-    Description := 'SVGA 320x200 256-Color';
-    Width := 320;
-    Height := 200;
-    MaxX := 319;
-    MaxY := 199;
-    Bpp := 8;
-    HelpText := 'Requires a VESA compliant Super VGA card.'
+  _frameBuffer := Pointer($A0000000);
+  segm := Seg(info);
+  offs := Ofs(info);
+  asm
+    mov  ax, 4F00h
+    mov  es, [segm]
+    mov  di, [offs]
+    int  10h
+    mov  [supported], al
+    mov  [status], ah
   end;
-  Modes.Add(newMode);
-
-  newMode := New(PGraphicsMode, Create('SVGA640x400x256'));
-  with newMode^ do
+  if (supported <> $4F) or (status <> 0) then
   begin
-    AdditionalData := SVga640x400x256;
-    Description := 'SVGA 640x400 256-Color';
-    Width := 640;
-    Height := 400;
-    MaxX := 639;
-    MaxY := 399;
-    Bpp := 8;
-    HelpText := 'Requires a VESA compliant Super VGA card.'
+    CreateError(error, ecGraphicsNotSupported, esError);
+    exit;
   end;
-  Modes.Add(newMode);
 
-  newMode := New(PGraphicsMode, Create('SVGA640x480x256'));
-  with newMode^ do
+  modePtr := info.VideoModes;
+  while modePtr^ <> $FFFF do
   begin
-    AdditionalData := SVga640x480x256;
-    Description := 'SVGA 640x480 256-Color';
-    Width := 640;
-    Height := 480;
-    MaxX := 639;
-    MaxY := 479;
-    Bpp := 8;
-    HelpText := 'Requires a VESA compliant Super VGA card.'
+    newMode := New(PSVgaMode, Create(''));
+    vbeMode := modePtr^;
+    segm := Seg(modeInfo);
+    offs := Ofs(modeInfo);
+    with newMode^ do
+    begin
+      asm
+        mov  ax, $4F01
+        mov  es, [segm]
+        mov  di, [offs]
+        mov  cx, [vbeMode]
+        int  10h
+      end;
+      _vbeMode := modeInfo;
+      Id := 'SVGA'
+        + IntToStr(_vbeMode.Width)
+        + 'x'
+        + IntToStr(_vbeMode.Height)
+        + 'x'
+        + IntToStr(_vbeMode.Bpp);
+      Description := 'SVGA '
+        + IntToStr(_vbeMode.Width)
+        + 'x'
+        + IntToStr(_vbeMode.Height)
+        + ' ';
+      case
+        _vbeMode.Bpp of
+          4: colors := '16';
+          8: colors := '256';
+          15: colors := '32k';
+          16: colors := '64k';
+          32: colors := '16m';
+      end;
+      Description := Description + colors + ' color';
+      AdditionalData := vbeMode;
+      Width := _vbeMode.Width;
+      Height := _vbeMode.Height;
+      MaxX := _vbeMode.Width - 1;
+      MaxY := _vbeMode.Height - 1;
+      Bpp := _vbeMode.Bpp;
+      HelpText := 'Requires a VESA compliant Super VGA card.'
+    end;
+    Inc(modePtr);
+    Modes.Add(newMode);
   end;
-  Modes.Add(newMode);
-
-  newMode := New(PGraphicsMode, Create('SVGA800x600x256'));
-  with newMode^ do
-  begin
-    AdditionalData := SVga800x600x256;
-    Description := 'SVGA 800x600 256-Color';
-    Width := 800;
-    Height := 600;
-    MaxX := 799;
-    MaxY := 599;
-    Bpp := 8;
-    HelpText := 'Requires a VESA compliant Super VGA card.'
-  end;
-  Modes.Add(newMode);
-
-  newMode := New(PGraphicsMode, Create('SVGA1024x768x256'));
-  with newMode^ do
-  begin
-    AdditionalData := SVga1024x768x256;
-    Description := 'SVGA 1024x768 256-Color';
-    Width := 1024;
-    Height := 768;
-    MaxX := 1023;
-    MaxY := 767;
-    Bpp := 8;
-    HelpText := 'Requires a VESA compliant Super VGA card.'
-  end;
-  Modes.Add(newMode);
-
-  newMode := New(PGraphicsMode, Create('SVGA640x350x256'));
-  with newMode^ do
-  begin
-    AdditionalData := SVga640x350x256;
-    Description := 'SVGA 640x350 256-Color';
-    Width := 640;
-    Height := 350;
-    MaxX := 639;
-    MaxY := 349;
-    Bpp := 8;
-    HelpText := 'Requires a VESA compliant Super VGA card.'
-  end;
-  Modes.Add(newMode);
-
-  newMode := New(PGraphicsMode, Create('SVga640x350x256'));
-  with newMode^ do
-  begin
-    AdditionalData := SVga640x350x256;
-    Description := 'SVGA 640x350 256-Color';
-    Width := 640;
-    Height := 350;
-    MaxX := 639;
-    MaxY := 349;
-    Bpp := 8;
-    HelpText := 'Requires a VESA compliant Super VGA card.'
-  end;
-  Modes.Add(newMode);
-
-  newMode := New(PGraphicsMode, Create('SVga1280x1024x256'));
-  with newMode^ do
-  begin
-    AdditionalData := SVga1280x1024x256;
-    Description := 'SVGA 1280x1024 256-Color';
-    Width := 1280;
-    Height := 1024;
-    MaxX := 1279;
-    MaxY := 1023;
-    Bpp := 8;
-    HelpText := 'Requires a VESA compliant Super VGA card.'
-  end;
-  Modes.Add(newMode);
-
-end;
-
-procedure TSVgaDriver.GetViewPort(var rect: TRect);
-begin
-  TGraphicsDriver.GetViewPort(rect);
-end;
-
-procedure TSVgaDriver.SetViewPort(rect: TRect);
-var
-  right, bottom, x, y, width, height: integer;
-  screenRect, result: TRect;
-begin
-  TGraphicsDriver.SetViewPort(rect);
-  right := rect.Right;
-  bottom := rect.bottom;
-  x := rect.X;
-  y := rect.Y;
-  width := rect.Width;
-  height := rect.height;
-  screenRect.Create(0, 0, Mode.Width, Mode.Height);
-  rect.Intersection(ScreenRect, result);
-  Graph.SetViewPort(result.X, result.Y, result.Right, result.Bottom, true);
 end;
 
 function TSVgaDriver.GetPixel(x, y: integer): byte;
+var
+  offset: longint;
+  ptr: PByte;
 begin
+  offset := x + longint(y) * PSVgaMode(mode)^._vbeMode.Pitch;
+  ptr := _frameBuffer;
+  Inc(ptr, offset and $FFFF);
+  SwitchBank(offset shr 16);
+  GetPixel := ptr^;
 end;
 
-procedure TSVgaDriver.SetMode(newMode: TGraphicsMode);
+procedure TSVgaDriver.SetMode(newMode: PGraphicsMode);
 var
-  selectedMode: integer;
-  rect: TRect;
+  selectedMode: word;
+  oldMode: word;
 begin
-  RegisterBgiDriver(newMode.AdditionalData);
-  InitBgiDriver(_svgaDriver, newMode.AdditionalData);
+  selectedMode := newMode^.AdditionalData;
+  asm
+    mov   ax, 4F02h
+    mov   bx, [selectedMode]
+    int   10h
+  end;
   if (Error.ErrorCode <> ecNone) then exit;
+  SetStandardPalette;
   Mode := newMode;
-  rect.Create(0, 0, mode.Width, mode.Height);
-  SetViewPort(rect);
-  SetTextStyle(DefaultFont, HorizDir, 1);
+end;
+
+procedure TSVgaDriver.SwitchBank(bank: word);
+begin
+  { some VBE implementations have separate read and write windows }
+  asm
+    { set Window A }
+    mov  ax, 4F05h
+    mov  bx, 0
+    mov  dx, [bank]
+    int  10h
+    { set Window B }
+    mov  ax, 4F05h
+    mov  bx, 1
+    mov  dx, [bank]
+    int  10h
+  end;
 end;
 
 procedure TSVgaDriver.SetPixel(x, y: integer);
+var
+  offset: longint;
+  ptr: PByte;
 begin
+  offset := x + longint(y) * PSVgaMode(mode)^._vbeMode.Pitch;
+  ptr := _frameBuffer;
+  Inc(ptr, offset and $FFFF);
+  SwitchBank(offset shr 16);
+  ptr^ := ForeColor;
 end;
 
 procedure TSVgaDriver.DrawText(x, y: integer; text: string);
 begin
-  SetColor(ForeColor);
-  OutTextXY(x, y, text);
+{  SetColor(ForeColor);
+  OutTextXY(x, y, text);}
 end;
 
 procedure TSVgaDriver.DrawTextW(x, y: integer; text: TWideString);
@@ -255,11 +275,30 @@ begin
 end;
 
 procedure TSVgaDriver.HLine(x, y, width: integer);
+var
+  offset: longint;
+  ptr: PByte;
+  index: word;
+  partialWidth: word;
+  ptrOffset: word;
+  bank: word;
 begin
-  SetColor(ForeColor);
-  SetLineStyle(SolidLn, 0, NormWidth);
-  Graph.MoveTo(x, y);
-  Graph.LineTo(x + width - 1, y);
+  offset := x + longint(y) * PSVgaMode(mode)^._vbeMode.Pitch;
+  ptr := _frameBuffer;
+  ptrOffset := offset and $FFFF;
+  Inc(ptr, ptrOffset);
+  bank := offset shr 16;
+  SwitchBank(bank);
+  if (ptrOffset + width > $FFFF) then
+  begin
+    partialWidth := $FFFF - ptrOffset + 1;
+    FillChar(ptr^, partialWidth, ForeColor);
+    SwitchBank(bank + 1);
+    ptr := _frameBuffer;
+    FillChar(ptr^, width - partialWidth, ForeColor);
+  end
+  else
+    FillChar(ptr^, width, ForeColor);
 end;
 
 procedure TSVgaDriver.VLine(x, y, height: integer);
@@ -267,195 +306,31 @@ begin
 end;
 
 procedure TSVgaDriver.FillRect(rect: TRect);
+var
+  index: word;
 begin
-  SetColor(ForeColor);
-  SetBkColor(BackColor);
-  SetFillStyle(SolidFill, BackColor);
-  SetFillPattern(_solidPattern, BackColor);
-  Bar(rect.X, rect.Y, rect.Right, rect.Bottom);
+  for index := rect.Y to rect.Bottom do
+  begin
+    HLine(rect.X, index, rect.Width);
+  end;
 end;
 
-procedure TSVgaDriver.DrawImage(x, y: integer; image: PByte);
+procedure TSvgaDriver.DrawImage(sourceRect, destRect: TRect; image: PByte);
 begin
+{  Graph.PutImage(destRect.X, destRect.Y, image, NormalPut);}
+end;
+
+function TSvgaDriver.GetImage(rect: TRect): PByte;
+var
+  result: PByte;
+begin
+{  Graph.GetImage(rect.X, rect.Y, rect.Right, rect.Bottom, result);
+  GetImage := result;}
 end;
 
 destructor TSVgaDriver.Done;
 begin
-  CloseGraph;
-end;
-
-procedure TSVgaDriver.SetSVgaPalette(palette: TRgbPalette);
-var
-  reg: Registers;
-  index: integer;
-begin
-  for index := 0 to 255 do
-  begin
-    with palette[index] do
-    begin
-      Red := Red shr 2;
-      Green := Green shr 2;
-      Blue := Blue shr 2;
-    end;
-  end;
-  FillChar(reg, SizeOf(reg), 0);
-  with reg do
-  begin
-    AX := $1012;
-    BX := $0;
-    CX := $FF;
-    ES := Seg(palette);
-    DX := Ofs(palette);
-    Intr($10, reg);
-  end;
-end;
-
-
-procedure TSVgaDriver.SetStandardPalette;
-var
-  palette: TRgbPalette;
-  colorIndex: TStandardColor;
-  shadeIndex, shade: integer;
-  paletteIndex: integer;
-  index: integer;
-begin
-  for Index := 0 to 21 do
-  begin
-    palette[index].Red := 0;
-    palette[index].Green := 0;
-    palette[index].Blue := 0;
-  end;
-  paletteIndex := 22;
-
-  for colorIndex := Low(TStandardColor) to High(TStandardColor) do
-  begin
-    for shadeIndex := 1 to 18 do
-    begin
-      shade := shadeIndex * 14;
-      case colorIndex of
-        scWhite:
-        begin
-          palette[paletteIndex].Red := shade;
-          palette[paletteIndex].Green := shade;
-          palette[paletteIndex].Blue := shade;
-        end;
-        scRed:
-        begin
-          palette[paletteIndex].Red := shade;
-          palette[paletteIndex].Green := 0;
-          palette[paletteIndex].Blue := 0;
-        end;
-        scGreen:
-        begin
-          palette[paletteIndex].Red := 0;
-          palette[paletteIndex].Green := shade;
-          palette[paletteIndex].Blue := 0;
-        end;
-        scBlue:
-        begin
-          palette[paletteIndex].Red := 0;
-          palette[paletteIndex].Green := 0;
-          palette[paletteIndex].Blue := shade;
-        end;
-        scYellow:
-        begin
-          palette[paletteIndex].Red := shade;
-          palette[paletteIndex].Green := shade;
-          palette[paletteIndex].Blue := 0;
-        end;
-        scMagenta:
-        begin
-          palette[paletteIndex].Red := shade;
-          palette[paletteIndex].Green := 0;
-          palette[paletteIndex].Blue := shade;
-        end;
-        scCyan:
-        begin
-          palette[paletteIndex].Red := 0;
-          palette[paletteIndex].Green := shade;
-          palette[paletteIndex].Blue := shade;
-        end;
-        scOrange:
-        begin
-          palette[paletteIndex].Red := shade;
-          palette[paletteIndex].Green := shade div 2;
-          palette[paletteIndex].Blue := 0;
-        end;
-        scChartreuse:
-        begin
-          palette[paletteIndex].Red := shade div 2;
-          palette[paletteIndex].Green := shade;
-          palette[paletteIndex].Blue := 0;
-        end;
-        scSpringGreen:
-        begin
-          palette[paletteIndex].Red := shade div 2;
-          palette[paletteIndex].Green := shade;
-          palette[paletteIndex].Blue := shade div 2;
-        end;
-        scAzure:
-        begin
-          palette[paletteIndex].Red := shade div 3;
-          palette[paletteIndex].Green := shade div 3;
-          palette[paletteIndex].Blue := shade;
-        end;
-        scViolet:
-        begin
-          palette[paletteIndex].Red := shade div 2;
-          palette[paletteIndex].Green := 0;
-          palette[paletteIndex].Blue := shade;
-        end;
-        scPink:
-        begin
-          palette[paletteIndex].Red := shade;
-          palette[paletteIndex].Green := shade div 3;
-          palette[paletteIndex].Blue := shade;
-        end;
-      end;
-      Inc(paletteIndex);
-    end;
-  end;
-  SetSvgaPalette(palette);
-end;
-
-procedure TSVgaDriver.InitBgiDriver(var driver: integer; bgiMode: integer);
-var
-  result: integer;
-begin
-  InitGraph(driver, bgiMode, AppDirectory + 'drivers\');
-  result := GraphResult;
-  if (result and $80 = $80) then
-    result := result or $FF00;
-  if (result <> 0) then
-  begin
-    CreateError(Error, ecGraphicsDriverError, esFatal);
-    exit;
-  end;
-  SetStandardPalette;
-end;
-
-function DetectVga256: integer;
-var
-  mode: integer;
-  DetectedDriver: integer;
-begin
-  DetectGraph(DetectedDriver, Mode);
-  if (DetectedDriver = VGA) or (DetectedDriver = MCGA) then
-    DetectVga256 := _selectedMode
-  else
-    DetectVga256 := grError;
-end;
-
-procedure TSVgaDriver.RegisterBgiDriver(newMode: integer);
-begin
-  _selectedMode := newMode;
-  _svgaDriver := InstallUserDriver('SVGA256', @DetectVga256);
-end;
-
-procedure TSVgaDriver.SetFillSolid(color: byte);
-begin
-  SetFillStyle(SolidFill, color);
-  SetFillPattern(_solidPattern, color);
+  TGraphicsDriver.Done;
 end;
 
 begin
