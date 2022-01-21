@@ -6,6 +6,7 @@ interface
 uses
   Objects,
   Consts,
+  Collects,
   Utils,
   Strings;
 

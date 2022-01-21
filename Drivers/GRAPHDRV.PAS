@@ -9,6 +9,7 @@ uses
   Dos,
   Drawing,
   WideStr,
+  Collects,
   Streams;
 
 const

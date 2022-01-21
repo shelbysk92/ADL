@@ -7,6 +7,7 @@ uses
   Objects,
   Utils,
   TPAlloc,
+  Collects,
   Dos;
 
 type
