@@ -1,5 +1,3 @@
-
-
 {$I Compiler.inc}
 unit SVgaDrv;
 
@@ -21,7 +19,7 @@ type
     procedure SwitchBank(bank: word);
   public
     function GetPixel(x, y: integer): byte; virtual;
-    function GetImage(rect: TRect): PByte; virtual;
+    procedure GetImage(var buffer: PByte; rect: TRect); virtual;
     procedure SetMode(newMode: PGraphicsMode); virtual;
     procedure SetPixel(x, y: integer); virtual;
     procedure DrawText(x, y: integer; text: string); virtual;
@@ -33,7 +31,7 @@ type
     procedure HLine(x, y, width: integer); virtual;
     procedure VLine(x, y, height: integer); virtual;
     procedure FillRect(rect: TRect); virtual;
-    procedure DrawImage(sourceRect, destRect: TRect; image: PByte); virtual;
+    procedure DrawImage(x, y, width, height: integer; image: PByte); virtual;
     procedure Init; virtual;
     destructor Done; virtual;
   end;
@@ -121,6 +119,8 @@ var
   modeInfo: TVbeMode;
   vbeMode: word;
   colors: string;
+  test: PSvgaMode;
+  index: integer;
 begin
   TGraphicsDriver.Init;
   TypeName := 'TSVgaDriver';
@@ -135,21 +135,19 @@ begin
     mov  [supported], al
     mov  [status], ah
   end;
-  if (supported <> $4F) or (status <> 0) then
-  begin
+  if (supported <> $4F) or (status <> 0) then begin
     CreateError(error, ecGraphicsNotSupported, esError);
     exit;
   end;
 
   modePtr := info.VideoModes;
-  while modePtr^ <> $FFFF do
-  begin
+  index := 0;
+  while modePtr^ <> $FFFF do begin
     newMode := New(PSVgaMode, Create(''));
     vbeMode := modePtr^;
     segm := Seg(modeInfo);
     offs := Ofs(modeInfo);
-    with newMode^ do
-    begin
+    with newMode^ do begin
       asm
         mov  ax, $4F01
         mov  es, [segm]
@@ -169,8 +167,7 @@ begin
         + 'x'
         + IntToStr(_vbeMode.Height)
         + ' ';
-      case
-        _vbeMode.Bpp of
+      case _vbeMode.Bpp of
           4: colors := '16';
           8: colors := '256';
           15: colors := '32k';
@@ -188,6 +185,8 @@ begin
     end;
     Inc(modePtr);
     Modes.Add(newMode);
+    test := PSVgaMode(Modes.GetItem(4));
+    Inc(index);
   end;
 end;
 
@@ -289,8 +288,7 @@ begin
   Inc(ptr, ptrOffset);
   bank := offset shr 16;
   SwitchBank(bank);
-  if (ptrOffset + width > $FFFF) then
-  begin
+  if (ptrOffset + width > $FFFF) then begin
     partialWidth := $FFFF - ptrOffset + 1;
     FillChar(ptr^, partialWidth, ForeColor);
     SwitchBank(bank + 1);
@@ -309,23 +307,74 @@ procedure TSVgaDriver.FillRect(rect: TRect);
 var
   index: word;
 begin
-  for index := rect.Y to rect.Bottom do
-  begin
+  for index := rect.Y to rect.Bottom do begin
     HLine(rect.X, index, rect.Width);
   end;
 end;
 
-procedure TSvgaDriver.DrawImage(sourceRect, destRect: TRect; image: PByte);
+procedure TSvgaDriver.DrawImage(x, y, width, height: integer; image: PByte);
+var
+  xIndex, yIndex, sx, sy: integer;
+  pixel: PByte;
+  offset: longint;
+  ptr: PByte;
 begin
-{  Graph.PutImage(destRect.X, destRect.Y, image, NormalPut);}
+  pixel := image;
+  for yIndex := 0 to height - 1 do begin
+    sy := y + yIndex;
+    sx := x;
+    if (sy > Mode^.MaxY) then break;
+    if (sy < 0) then continue;
+    for xIndex := 0 to width - 1 do
+    begin
+      if (sx > Mode^.MaxX) then begin
+        Inc(pixel, width - xIndex);
+        break;
+      end;
+      if (pixel^ <> TransparentColor) and (sx > 0) then begin
+        offset := sx + longint(sy) * PSVgaMode(Mode)^._vbeMode.Pitch;
+        ptr := _frameBuffer;
+        Inc(ptr, offset and $FFFF);
+        SwitchBank(offset shr 16);
+        ptr^ := pixel^;
+      end;
+      Inc(pixel);
+      Inc(sx);
+    end;
+  end;
 end;
 
-function TSvgaDriver.GetImage(rect: TRect): PByte;
+procedure TSvgaDriver.GetImage(var buffer: PByte; rect: TRect);
 var
-  result: PByte;
+  xIndex, yIndex, maxX, maxY, sx: integer;
+  offset: longint;
+  dest, pixel: PByte;
+  pitch: word;
 begin
-{  Graph.GetImage(rect.X, rect.Y, rect.Right, rect.Bottom, result);
-  GetImage := result;}
+  dest := buffer;
+  FillChar(buffer^, rect.Width * rect.Height, 0);
+  pitch := PSVgaMode(Mode)^._vbeMode.Pitch;
+  maxX := Mode^.MaxX;
+  maxY := Mode^.MaxY;
+  for yIndex := rect.Y to rect.Bottom do begin
+    if (yIndex > maxY) then break;
+    if (yIndex < 0) then continue;
+    for xIndex := rect.X to rect.Right do begin
+      if (xIndex > maxX) then begin
+        Inc(dest, rect.Width - xIndex);
+        break;
+      end;
+      if (xIndex > 0) then begin
+        offset := xIndex + longint(yIndex) * pitch;
+        pixel := _frameBuffer;
+        Inc(pixel, offset and $FFFF);
+        SwitchBank(offset shr 16);
+        dest^ := pixel^;
+        Inc(dest);
+      end;
+    end;
+    Inc(dest, rect.Width);
+  end;
 end;
 
 destructor TSVgaDriver.Done;

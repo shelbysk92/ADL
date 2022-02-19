@@ -138,9 +138,9 @@ begin
   if (_capacity > 0) and (_buffer <> nil) then
   begin
     if (cap > _capacity) then
-      Move(_buffer^, newBuffer^, _capacity)
+      Move(_buffer^, newBuffer^, _capacity * SizeOf(pointer))
     else
-      Move(_buffer^, NewBuffer^, cap);
+      Move(_buffer^, NewBuffer^, cap * SizeOf(pointer));
     FreeMem(_buffer, _capacity * SizeOf(pointer));
   end;
   _buffer := newBuffer;

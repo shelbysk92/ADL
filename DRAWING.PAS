@@ -9,7 +9,7 @@ uses
 type
   TRect = object(TBaseObject)
   public
-    X1, Y1, Width, Height: longint;
+    X, Y, Width, Height: longint;
     constructor Create(newX, newY, newWidth, newHeight: longint);
     constructor CreateCoords(newX, newY, newRight, newBottom: longint);
     constructor CreateRect(newRect: TRect);

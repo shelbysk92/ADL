@@ -118,7 +118,7 @@ type
     function BackColor: byte; virtual;
     function XPos: byte; virtual;
     function YPos: byte; virtual;
-    function GetImage(rect: TRect): PByte; virtual;
+    procedure GetImage(var buffer: PByte; rect: TRect); virtual;
     procedure SetForeColor(color: byte); virtual;
     procedure SetBackColor(color: byte); virtual;
     procedure SetMode(newMode: PGraphicsMode); virtual;
@@ -130,7 +130,7 @@ type
     procedure VLine(x, y, height: integer); virtual;
     procedure Rectangle(x1, y1, x2, y2: integer); virtual;
     procedure FillRect(rect: TRect); virtual;
-    procedure DrawImage(sourceRect, destRect: TRect; image: PByte); virtual;
+    procedure DrawImage(x, y, width, height: integer; image: PByte); virtual;
     procedure DrawText(x, y: integer; text: string); virtual;
     procedure DrawTextW(x, y: integer; text: TWideString); virtual;
     procedure SetStandardPalette; virtual;
@@ -237,11 +237,11 @@ procedure TGraphicsDriver.FillRect(rect: TRect);
 begin
 end;
 
-procedure TGraphicsDriver.DrawImage(sourceRect, destRect: TRect; image: PByte);
+procedure TGraphicsDriver.DrawImage(x, y, width, height: integer; image: PByte);
 begin
 end;
 
-function TGraphicsDriver.GetImage(rect: TRect): PByte;
+procedure TGraphicsDriver.GetImage(var buffer: PByte; rect: TRect);
 begin
 end;
 
