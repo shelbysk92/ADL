@@ -500,12 +500,12 @@ begin
   TObject.Init;
   TypeName := 'TFont';
   _fontData := nil;
-  _maxWidth := 8;
+  _maxWidth := 9;
   Version := 1.0;
   TransparentColor := 0;
   Transparent := true;
   Initialized := true;
-  Height := 8;
+  Height := 16;
 end;
 
 procedure TFont.ReadFromStream(stream: TStream; var error: TError);

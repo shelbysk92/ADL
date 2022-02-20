@@ -361,8 +361,8 @@ begin
     if (yIndex < 0) then continue;
     for xIndex := rect.X to rect.Right do begin
       if (xIndex > maxX) then begin
-        Inc(dest, rect.Width - xIndex);
-        break;
+        Inc(dest);
+        continue;
       end;
       if (xIndex > 0) then begin
         offset := xIndex + longint(yIndex) * pitch;
@@ -370,10 +370,9 @@ begin
         Inc(pixel, offset and $FFFF);
         SwitchBank(offset shr 16);
         dest^ := pixel^;
-        Inc(dest);
       end;
+      Inc(dest);
     end;
-    Inc(dest, rect.Width);
   end;
 end;
 
