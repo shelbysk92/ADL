@@ -248,9 +248,35 @@ begin
 end;
 
 procedure TSVgaDriver.DrawText(x, y: integer; text: string);
+var
+  charIndex, xIndex, yIndex, sx, sy, chWidth, MaxX, MaxY: integer;
+  ch: char;
+  pixel: byte;
 begin
-{  SetColor(ForeColor);
-  OutTextXY(x, y, text);}
+  if (Font = nil) then exit;
+  PushState;
+  sx := x;
+  maxX := Mode^.MaxX;
+  maxY := Mode^.MaxY;
+  for charIndex := 1 to Length(text) do begin
+    ch := text[charIndex];
+    for yIndex := 0 to Font^.Height - 1 do begin
+      sy := y + yIndex;
+      maxX := 1
+      if (sy > MaxY) then continue;
+      chWidth := Font^.TextWidth(ch);
+      for xIndex := 0 to chWidth - 1 do begin
+        if (sx > maxX) then break;
+        if (not Font^.PixelSet(ch, xIndex, yIndex)) then
+          continue;
+        SetPixel(sx, sy);
+        Inc(sx);
+      end;
+      Dec(sx, chWidth);
+    end;
+    Inc(sx, 2);
+  end;
+  PopState;
 end;
 
 procedure TSVgaDriver.DrawTextW(x, y: integer; text: TWideString);
@@ -346,7 +372,7 @@ end;
 
 procedure TSvgaDriver.GetImage(var buffer: PByte; rect: TRect);
 var
-  xIndex, yIndex, maxX, maxY, sx: integer;
+  xIndex, yIndex, maxX, maxY: integer;
   offset: longint;
   dest, pixel: PByte;
   pitch: word;

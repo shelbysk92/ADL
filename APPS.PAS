@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A+,B-,D+,F+,G+,I+,L+,N+,P+,Q+,R+,S+,V+,X+,Y+}
-{$ELSE}
-  {$A+,B-,D-,F+,G+,I+,L-,N+,P+,Q-,R-,S-,V+,X+,Y-}
-{$ENDIF}
+{$I Compiler.inc}
 unit Apps;
 
 interface

@@ -1,8 +1,4 @@
-{$IFDEF debug}
-  {$A+,B-,D+,E+,F+,G+,I+,L+,N+,O-,P+,Q+,R+,S+,V+,X+,Y+}
-{$ELSE}
-  {$A+,B-,D-,E+,F+,G+,I+,L-,N+,O-,P+,Q-,R-,S-,V+,X+,Y-}
-{$ENDIF}
+{$I compiler.inc}
 unit DateTime;
 
 interface
@@ -26,13 +22,13 @@ type
   TWeekDays = set of TWeekDay;
   TDateTime = object(TBaseObject)
   private
-    _ticks: comp; { 100th of second ticks since midnight 1/1/0001 }
+    _ticks: real; { 100th of second ticks since midnight 1/1/0001 }
     _second, _minute, _hour, _hundredthSecond: byte;
     _month, _day: byte;
     _year: word;
   public
     constructor Create;
-    constructor CreateTicks(newTicks: comp);
+    constructor CreateTicks(newTicks: real);
     constructor CreateDateTime(newYear, newMonth, newDay, newHour, newMinute, newSecond, newHundredthSecond: word);
     constructor CreateDate(newYear, newMonth, newDay: word);
     constructor CreateTime(newHour, newMinute, newSecond, newHundredthSecond: word);
@@ -42,8 +38,8 @@ type
     procedure SetDate(newYear, newMonth, newDay: word); virtual;
     procedure SetTime(newHour, newMinute, newSecond, newHundredthSecond: word); virtual;
     procedure SetDateTime(newYear, newMonth, newDay, newHour, newMinute, newSecond, newHundredthSecond: word); virtual;
-    procedure SetTicks(newTicks: comp); virtual;
-    function Ticks: comp; virtual;
+    procedure SetTicks(newTicks: real); virtual;
+    function Ticks: real; virtual;
     function Day: byte; virtual;
     function Month: byte; virtual;
     function Year: word; virtual;
@@ -65,11 +61,11 @@ function DaysInMonth(year: word; month: byte): byte;
 function IsLeapYear(year: word): boolean;
 function DaysInYear(year: word): word;
 function LeapYearsBetween(year1, year2: word): word;
-function OneTick: comp;
-function OneSecond: comp;
-function OneMinute: comp;
-function OneHour: comp;
-function OneDay: comp;
+function OneTick: real;
+function OneSecond: real;
+function OneMinute: real;
+function OneHour: real;
+function OneDay: real;
 
 implementation
 
@@ -85,7 +81,7 @@ begin
   _year := 0;
 end;
 
-constructor TDateTime.CreateTicks(newTicks: comp);
+constructor TDateTime.CreateTicks(newTicks: real);
 begin
   SetTicks(newTicks);
 end;
@@ -190,10 +186,10 @@ begin
   _year := newYear;
 end;
 
-procedure TDateTime.SetTicks(newTicks: comp);
+procedure TDateTime.SetTicks(newTicks: real);
 var
   index: integer;
-  currentTicks: comp;
+  currentTicks: real;
   days: word;
   intTicks: longint;
   h: longint;
@@ -235,7 +231,7 @@ begin
   _hundredthSecond := intTicks;
 end;
 
-function TDateTime.Ticks: comp;
+function TDateTime.Ticks: real;
 begin
   Ticks := _ticks;
 end;
@@ -275,27 +271,27 @@ begin
   Hour := _hour;
 end;
 
-function OneTick: comp;
+function OneTick: real;
 begin
   OneTick := 1;
 end;
 
-function OneSecond: comp;
+function OneSecond: real;
 begin
   OneSecond := OneTick * 100;
 end;
 
-function OneMinute: comp;
+function OneMinute: real;
 begin
   OneMinute := OneSecond * 60;
 end;
 
-function OneHour: comp;
+function OneHour: real;
 begin
   OneHour := OneMinute * 60;
 end;
 
-function OneDay: comp;
+function OneDay: real;
 begin
   OneDay := OneHour * 24;
 end;

@@ -91,6 +91,22 @@ type
     function CharWidth(ch: char): integer; virtual;
     function TextWidth(text: string): integer; virtual;
     function TextWidthW(text: TWideString): integer; virtual;
+    function PixelSet(ch: char; x, y: integer): boolean; virtual;
+  end;
+  PMonospaceFont = ^TMonospaceFont;
+  TMonospaceFont = object(TFont)
+  public
+    procedure Init; virtual;
+    function TextWidth(text: string): integer; virtual;
+    function TextWidthW(text: TWideString): integer; virtual;
+  end;
+  PSystemFont = ^TSystemFont;
+  TSystemFont = object(TMonospaceFont)
+  public
+    function CharWidth(ch: char): integer; virtual;
+    function PixelSet(ch: char; x, y: integer): boolean; virtual;
+    procedure Init; virtual;
+    destructor Done; virtual;
   end;
   PGraphicsSettings = ^TGraphicsSettings;
   TGraphicsSettings = object(TPersistent)
@@ -99,6 +115,7 @@ type
     ForeColor: byte;
     BackColor: byte;
     XPos, YPos: integer;
+    Font: PFont;
     procedure Init; virtual;
     procedure Assign(var source: TPersistent); virtual;
     procedure AssignTo(var dest: TPersistent); virtual;
@@ -116,6 +133,7 @@ type
     function GetColor(color: TStandardColor; intensity: byte): byte; virtual;
     function ForeColor: byte; virtual;
     function BackColor: byte; virtual;
+    function Font: PFont; virtual;
     function XPos: byte; virtual;
     function YPos: byte; virtual;
     procedure GetImage(var buffer: PByte; rect: TRect); virtual;
@@ -135,6 +153,7 @@ type
     procedure DrawTextW(x, y: integer; text: TWideString); virtual;
     procedure SetStandardPalette; virtual;
     procedure SetRgbPalette(palette: TRgbPalette);
+    procedure SetFont(newFont: PFont);
     procedure PushState; virtual;
     procedure PopState; virtual;
     procedure Init; virtual;
@@ -175,6 +194,11 @@ end;
 function TGraphicsDriver.BackColor: byte;
 begin
   BackColor := _settings^.BackColor;
+end;
+
+function TGraphicsDriver.Font: PFont;
+begin
+  Font := _settings^.Font;
 end;
 
 function TGraphicsDriver.XPos: byte;
@@ -386,6 +410,11 @@ begin
   end;
 end;
 
+procedure TGraphicsDriver.SetFont(newFont: PFont);
+begin
+  _settings^.Font := newFont;
+end;
+
 procedure TGraphicsDriver.PushState;
 var
   settings: PGraphicsSettings;
@@ -500,12 +529,10 @@ begin
   TObject.Init;
   TypeName := 'TFont';
   _fontData := nil;
-  _maxWidth := 9;
   Version := 1.0;
   TransparentColor := 0;
   Transparent := true;
   Initialized := true;
-  Height := 16;
 end;
 
 procedure TFont.ReadFromStream(stream: TStream; var error: TError);
@@ -522,12 +549,85 @@ end;
 
 function TFont.TextWidth(text: string): integer;
 begin
-  TextWidth := Length(text) * 8;
 end;
 
 function TFont.TextWidthW(text: TWideString): integer;
 begin
-  TextWidthW := text.Len * 8;
+end;
+
+function TFont.PixelSet(ch: char; x, y: integer): boolean;
+begin
+end;
+
+procedure TMonospaceFont.Init;
+begin
+  TFont.Init;
+  TypeName := 'TMonospaceFont';
+end;
+
+function TMonospaceFont.TextWidth(text: string): integer;
+var
+  width: integer;
+begin
+  width := Length(text) * _maxWidth * 8;
+  Inc(width, MaxL(Length(text) - 1, 0));
+  TextWidth := width;
+end;
+
+function TMonospaceFont.TextWidthW(text: TWideString): integer;
+var
+  width: integer;
+begin
+  width := text.Len * _maxWidth * 8;
+  Inc(width, MaxL(text.Len - 1, 0));
+  TextWidthW := width;
+end;
+
+procedure TSystemFont.Init;
+var
+  fontSeg: word;
+  fontOff: word;
+  fontPtr: pointer;
+begin
+  TMonospaceFont.Init;
+  TypeName := 'TSystemFont';
+  Height := 16;
+  _maxWidth := 8;
+  asm
+    push es
+    push bp
+    mov ax, 1130h
+    mov bh, 6
+    int 10h
+    mov [fontSeg], es
+    mov [fontOff], bp
+    pop bp
+    pop es
+  end;
+  fontPtr := Ptr(fontSeg, fontOff);
+  GetMem(_fontData, 256 * 16);
+  Move(fontPtr^, _fontData^, 256 * 16);
+end;
+
+destructor TSystemFont.Done;
+begin
+  FreeMem(_fontData, 256 * 16);
+end;
+
+function TSystemFont.CharWidth(ch: char): integer;
+begin
+  CharWidth := 8;
+end;
+
+function TSystemFont.PixelSet(ch: char; x, y: integer): boolean;
+var
+  pixelPtr : PByte;
+  line: byte;
+begin
+  pixelPtr := _fontData;
+  Inc(pixelPtr, ord(ch) * 16 + y * 8);
+  line := pixelPtr^;
+  PixelSet := line and (1 shl x) > 0;
 end;
 
 procedure TGraphicsSettings.Init;
@@ -538,6 +638,7 @@ begin
   BackColor := 0;
   XPos := 0;
   YPos := 0;
+  Font := nil;
 end;
 
 procedure TGraphicsSettings.Assign(var source: TPersistent);
@@ -549,6 +650,7 @@ begin
   BackColor := settings^.BackColor;
   XPos := settings^.XPos;
   YPos := settings^.YPos;
+  Font := settings^.Font;
 end;
 
 procedure TGraphicsSettings.AssignTo(var dest: TPersistent);
@@ -560,6 +662,7 @@ begin
   settings^.BackColor := BackColor;
   settings^.XPos := XPos;
   settings^.YPos := YPos;
+  settings^.Font := Font;
 end;
 
 end.
