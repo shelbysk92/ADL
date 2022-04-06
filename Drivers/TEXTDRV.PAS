@@ -7,11 +7,34 @@ uses
   Collects,
   Consts,
   Utils,
+  Drawing,
   WideStr;
 
 type
-  TLineStyle =
-  (
+  TTextColors = (
+    Black,
+    Blue,
+    Green,
+    Cyan,
+    Red,
+    Magenta,
+    Brown,
+    LightGray,
+    DarkGray,
+    LightBlue,
+    LightGreen,
+    LightCyan,
+    LightRed,
+    Pink,
+    Yellow,
+    White
+  );
+
+  TTextChar = record
+    Character: char;
+    Attributes: byte;
+  end;
+  TLineStyle = (
     lsSingle,
     lsDouble
   );
@@ -19,7 +42,10 @@ type
   TTextState = object(TObject)
   public
     ForeColor, BackColor: byte;
+    Blink: boolean;
     X, Y: byte;
+    Attributes: byte;
+    IsCursorOn: boolean;
     procedure Init; virtual;
     procedure Assign(state: TTextState); virtual;
   end;
@@ -47,26 +73,27 @@ type
   end;
   PTextDriver = ^TTextDriver;
   TTextDriver = Object(TObject)
-  private
-    _state: TTextState;
     _stateStack: PStack;
   public
     Mode: TTextMode;
     Modes: TTextModeList;
     Error: TError;
+    State: TTextState;
     procedure PushState; virtual;
     procedure PopState; virtual;
-    procedure WriteText(const txt: string); virtual;
-    procedure WriteTextLn(const txt: string); virtual;
-    procedure WriteWideText(txt: TWideString); virtual;
-    procedure WriteWideTextLn(txt: TWideString); virtual;
+    procedure Write(const txt: string); virtual;
+    procedure WriteWide(txt: TWideString); virtual;
     procedure SetForeColor(color: byte); virtual;
     procedure SetBackColor(color: byte); virtual;
+    procedure SetBlink(doBlink: boolean); virtual;
     procedure SetXY(newX, newY: byte); virtual;
+    procedure CursorOn; virtual;
+    procedure CursorOff; virtual;
     procedure Init; virtual;
     procedure SetMode(newMode: TTextMode); virtual;
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
     procedure VLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
+    procedure Box(rect: TRect; style: TLineStyle); virtual;
     procedure ClrScr; virtual;
     function ForeColor: byte; virtual;
     function BackColor: byte; virtual;
@@ -74,7 +101,7 @@ type
   end;
 
 var
-  Txt: PTextDriver;
+  TextDriver: PTextDriver;
 
 implementation
 
@@ -84,12 +111,20 @@ begin
   BackColor := 0;
   X := 0;
   Y := 0;
+  Blink := false;
+  Attributes := 0;
+  IsCursorOn := true;
 end;
 
 procedure TTextState.Assign(state: TTextState);
 begin
   ForeColor := state.ForeColor;
   BackColor := state.BackColor;
+  X := state.X;
+  Y := state.Y;
+  Blink := state.Blink;
+  Attributes := state.Attributes;
+  IsCursorOn := state.IsCursorOn;
 end;
 
 procedure TTextMode.Init;
@@ -146,63 +181,71 @@ end;
 
 procedure TTextDriver.PushState;
 var
-  state: PTextState;
+  newState: PTextState;
 begin
-  state := New(PTextState, Create(''));
-  state^.Assign(_state);
-  _stateStack^.Push(state);
+  newState := New(PTextState, Create(''));
+  newState^.Assign(State);
+  _stateStack^.Push(newState);
 end;
 
 procedure TTextDriver.PopState;
 var
-  state: PTextState;
+  newState: PTextState;
 begin
-  state := PTextState(_stateStack^.Pop);
-  if (state = nil) then exit;
-  _state.Assign(state^);
-  Dispose(state, Done);
+  newState := PTextState(_stateStack^.Pop);
+  if (newState = nil) then exit;
+  State.Assign(newState^);
+  Dispose(newState, Done);
 end;
 
 procedure TTextDriver.SetXY(newX, newY: byte);
 begin
-  _state.X := newX;
-  _state.Y := newY;
+  State.X := newX;
+  State.Y := newY;
 end;
 
 procedure TTextDriver.SetMode(newMode: TTextMode);
 begin
 end;
 
-procedure TTextDriver.WriteText(const txt: string);
+procedure TTextDriver.Write(const txt: string);
 begin
 end;
 
-procedure TTextDriver.WriteTextLn(const txt: string);
-begin
-end;
-
-procedure TTextDriver.WriteWideText(txt: TWideString);
-begin
-end;
-
-procedure TTextDriver.WriteWideTextLn(txt: TWideString);
+procedure TTextDriver.WriteWide(txt: TWideString);
 begin
 end;
 
 procedure TTextDriver.SetForeColor(color: byte);
 begin
-  _state.ForeColor := color;
+  State.ForeColor := color;
+end;
+
+procedure TTextDriver.SetBlink(doBlink: boolean);
+begin
+  State.Blink := doBlink;
 end;
 
 procedure TTextDriver.SetBackColor(color: byte);
 begin
-  _state.BackColor := color;
+  State.BackColor := color;
+end;
+
+procedure TTextDriver.CursorOn;
+begin
+  State.IsCursorOn := true;
+end;
+
+procedure TTextDriver.CursorOff;
+begin
+  State.IsCursorOn := false;
 end;
 
 procedure TTextDriver.Init;
 begin
   Modes.Create('TextDrvModeList');
   Mode.CreateEmpty;
+  State.Create('TextState');
   _stateStack := New(PStack, Create('TextStateStack'));
 end;
 
@@ -220,18 +263,22 @@ procedure TTextDriver.VLine(x1, y1, width: byte; lineStyle: TLineStyle);
 begin
 end;
 
+procedure TTextDriver.Box(rect: TRect; style: TLineStyle);
+begin
+end;
+
 procedure TTextDriver.ClrScr;
 begin
 end;
 
 function TTextDriver.ForeColor: byte;
 begin
-  ForeColor := _state.ForeColor;
+  ForeColor := State.ForeColor;
 end;
 
 function TTextDriver.BackColor: byte;
 begin
-  BackColor := _state.BackColor;
+  BackColor := State.BackColor;
 end;
 
 end.

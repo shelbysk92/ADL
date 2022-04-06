@@ -64,7 +64,7 @@ var
   dataSize: word;
 begin
   if (Capacity = newCapacity) then exit;
-  dataSize := newCapacity * SizeOf(Pointer);
+  dataSize := newCapacity;
   GetMem(newData, dataSize);
   FillChar(newData^, dataSize, 0);
   if (newCapacity > 0) and (Data <> nil) then
@@ -73,7 +73,7 @@ begin
       Move(Data^, NewData^, Capacity)
     else
       Move(Data^, NewData^, newCapacity);
-    FreeMem(Data, Capacity * SizeOf(pointer));
+    FreeMem(Data, Capacity);
   end;
   Data := newData;
   Capacity := newCapacity;
@@ -100,8 +100,8 @@ function TWideString.ToString: string;
 var
   result: string;
 begin
-  Move(Data^, result[1], Lo(Len));
-  result[0] := Chr(Lo(Len));
+  Move(Data^, result[1], MinW(Len, 255));
+  result[0] := Chr(MinW(Len, 255));
   ToString := result;
 end;
 
@@ -110,7 +110,7 @@ var
   strPtr: PChar;
 begin
   if (Data <> nil) then
-    FreeMem(Data, Capacity * SizeOf(pointer));
+    FreeMem(Data, Capacity);
   Data := nil;
   Len := Length(st);
   Capacity := 0;
