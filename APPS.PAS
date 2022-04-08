@@ -41,13 +41,13 @@ begin
 end;
 
 procedure TApplication.Init;
+{$IFDEF debug}
 var
-  {$IFDEF debug}
     filename: string;
     debugFile: File;
     xmsHandle: word;
     xmsControl: pointer;
-  {$ENDIF}
+{$ENDIF}
 begin
   TObject.Init;
   TypeName := 'TApplication';
