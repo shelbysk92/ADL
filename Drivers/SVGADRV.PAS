@@ -262,7 +262,7 @@ begin
     ch := text[charIndex];
     for yIndex := 0 to Font^.Height - 1 do begin
       sy := y + yIndex;
-      maxX := 1
+      maxX := 1;
       if (sy > MaxY) then continue;
       chWidth := Font^.TextWidth(ch);
       for xIndex := 0 to chWidth - 1 do begin
