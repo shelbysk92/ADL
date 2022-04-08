@@ -25,7 +25,7 @@ type
     procedure Init; virtual;
     procedure SetMode(newMode: TTextMode); virtual;
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
-    procedure VLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
+    procedure VLine(x1, y1, height: byte; lineStyle: TLineStyle); virtual;
     procedure Box(rect: TRect; style: TLineStyle); virtual;
     procedure SetXY(newX, newY: byte); virtual;
     procedure CursorOn; virtual;
@@ -36,12 +36,14 @@ type
 
 implementation
 
+const
+  VgaScreen: PByte = Ptr($B800, $0000);
+
 type
   TVga80x25Screen = array[0..24, 0..79] of byte;
 
 var
   _currentScreen: PByte;
-
 
 procedure TVgaTextDriver.SetMode(newMode: TTextMode);
 begin
@@ -64,7 +66,7 @@ var
 begin
   cursorState := State.IsCursorOn;
   if CursorState then CursorOff;
-  offset := Ptr($B800, $0000);
+  offset := VgaScreen;
   Inc(offset, 2 * (State.Y * Mode.Width + State.X));
   ch.Attributes := State.Attributes;
   for index := 1 to Length(txt) do begin
@@ -91,7 +93,7 @@ var
 begin
   cursorState := State.IsCursorOn;
   if CursorState then CursorOff;
-  offset := Ptr($B800, $0000);
+  offset := VgaScreen;
   Inc(offset, 2 * (State.Y * Mode.Width + State.X));
   ch.Attributes := State.Attributes;
   for index := 1 to txt.Len do begin
@@ -172,6 +174,7 @@ begin
   TypeName := 'TVgaTextDriver';
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
+    Id := 'VgaText80x25';
     Width := 80;
     Height := 25;
     MaxX := 79;
@@ -184,6 +187,7 @@ begin
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
+    Id := 'VgaText80x50';
     Width := 80;
     Height := 50;
     MaxX := 79;
@@ -197,15 +201,82 @@ begin
 end;
 
 procedure TVgaTextDriver.HLine(x1, y1, width: byte; lineStyle: TLineStyle);
+var
+  ch: TTextChar;
+  index: integer;
+  offset: PByte;
+  cursorState: boolean;
 begin
+  cursorState := State.IsCursorOn;
+  if CursorState then CursorOff;
+  ch.Attributes := State.Attributes;
+  ch.Character := #196;
+  if (lineStyle = lsDouble) then ch.Character := #205;
+  Offset := VgaScreen;
+  Inc(offset, 2 * (y1 * Mode.Width + x1));
+  for index := 0 to width - 1 do begin
+    Move(ch, offset^, 2);
+    Inc(offset, 2);
+  end;
+  if CursorState then CursorOn;
 end;
 
-procedure TVgaTextDriver.VLine(x1, y1, width: byte; lineStyle: TLineStyle);
+procedure TVgaTextDriver.VLine(x1, y1, height: byte; lineStyle: TLineStyle);
+var
+  ch: TTextChar;
+  index: integer;
+  offset: PByte;
+  cursorState: boolean;
 begin
+  cursorState := State.IsCursorOn;
+  if CursorState then CursorOff;
+  ch.Attributes := State.Attributes;
+  ch.Character := #179;
+  if (lineStyle = lsDouble) then ch.Character := #186;
+  offset := VgaScreen;
+  Inc(offset, 2 * (y1 * Mode.Width + x1));
+  for index := y1 to y1 + height - 1 do begin
+    Move(ch, offset^, 2);
+    Inc(offset, 2 * Mode.Width);
+  end;
+  if CursorState then CursorOn;
 end;
 
 procedure TVgaTextDriver.Box(rect: TRect; style: TLineStyle);
+var
+  ch: TTextChar;
+  offset: PByte;
 begin
+  ch.Attributes := State.Attributes;
+
+  ch.Character := #218;
+  if (style = lsDouble) then ch.Character := #201;
+  offset := VgaScreen;
+  Inc(offset, 2 * (rect.Y * Mode.Width + rect.X));
+  Move(ch, offset^, 2);
+
+  ch.Character := #191;
+  if (style = lsDouble) then ch.Character := #187;
+  offset := VgaScreen;
+  Inc(offset, 2 * (rect.Y * Mode.Width + rect.X + rect.Width - 1));
+  Move(ch, offset^, 2);
+
+  ch.Character := #192;
+  if (style = lsDouble) then ch.Character := #200;
+  offset := VgaScreen;
+  Inc(offset, 2 * ((rect.Y + rect.Height - 1) * Mode.Width + rect.X));
+  Move(ch, offset^, 2);
+
+  ch.Character := #217;
+  if (style = lsDouble) then ch.Character := #188;
+  offset := VgaScreen;
+  Inc(offset, 2 * ((rect.Y + rect.Height - 1) * Mode.Width + rect.X + rect.Width - 1));
+  Move(ch, offset^, 2);
+
+  HLine(rect.X + 1, rect.Y, rect.Width - 2, style);
+  HLine(rect.X + 1, rect.Y + rect.Height - 1, rect.Width - 2, style);
+  VLine(rect.X, rect.Y + 1, rect.Height - 2, style);
+  VLine(rect.X + rect.Width - 1, rect.Y + 1, rect.Height - 2, style);
 end;
 
 procedure TVgaTextDriver.ClrScr;
@@ -216,7 +287,7 @@ var
   line, linePtr: PByte;
 begin
   GetMem(line, Mode.Width * 2);
-  offset := Ptr($B800, $0000);
+  offset := VgaScreen;
   ch.Attributes := State.Attributes;
   ch.Character := #32;
   linePtr := line;
@@ -237,4 +308,6 @@ begin
   TTextDriver.Done;
 end;
 
+begin
+  VgaScreen := Ptr($B800, $0000);
 end.

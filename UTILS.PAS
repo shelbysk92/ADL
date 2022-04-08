@@ -59,6 +59,11 @@ const
   ecStreamReadNotSupported = 405;
   ecStreamNotOpen = 406;
 
+  { Text errors }
+  ecTextDriverNotSupported = 501;
+  ecTextDriverError = 502;
+  ecTextModeNotFound = 503;
+
   HexDigits: String[16] = '0123456789ABCDEF';
 
 function IntToStr(num: longint): string;
@@ -147,6 +152,12 @@ begin
     ErrorMessage := 'File is invalid'
   else if (errorCode = ecGraphicsNotSupported) then
     ErrorMessage := 'Graphics mode not supported'
+  else if (errorCode = ecTextDriverNotSupported) then
+    ErrorMessage := 'Text driver not supported'
+  else if (errorCode = ecTextDriverError) then
+    ErrorMessage := 'Text driver error'
+  else if (errorCode = ecTextModeNotFound) then
+    ErrorMessage := 'Text mode not found'
   else if (errorCode = ecMemoryReferenceNotFound) then
     ErrorMessage := 'Memory reference not found'
   else if (errorCode = ecInvalidMemoryReference) then

@@ -92,7 +92,7 @@ type
     procedure Init; virtual;
     procedure SetMode(newMode: TTextMode); virtual;
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
-    procedure VLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
+    procedure VLine(x1, y1, height: byte; lineStyle: TLineStyle); virtual;
     procedure Box(rect: TRect; style: TLineStyle); virtual;
     procedure ClrScr; virtual;
     function ForeColor: byte; virtual;
@@ -101,7 +101,7 @@ type
   end;
 
 var
-  TextDriver: PTextDriver;
+  TextDriver: TTextDriver;
 
 implementation
 
@@ -259,7 +259,7 @@ procedure TTextDriver.HLine(x1, y1, width: byte; lineStyle: TLineStyle);
 begin
 end;
 
-procedure TTextDriver.VLine(x1, y1, width: byte; lineStyle: TLineStyle);
+procedure TTextDriver.VLine(x1, y1, height: byte; lineStyle: TLineStyle);
 begin
 end;
 
