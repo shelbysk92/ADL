@@ -11,25 +11,6 @@ uses
   WideStr;
 
 type
-  TTextColors = (
-    Black,
-    Blue,
-    Green,
-    Cyan,
-    Red,
-    Magenta,
-    Brown,
-    LightGray,
-    DarkGray,
-    LightBlue,
-    LightGreen,
-    LightCyan,
-    LightRed,
-    Pink,
-    Yellow,
-    White
-  );
-
   TTextChar = record
     Character: char;
     Attributes: byte;
@@ -39,7 +20,7 @@ type
     lsDouble
   );
   PTextState = ^TTextState;
-  TTextState = object(TObject)
+  TTextState = object(TPersistent)
   public
     ForeColor, BackColor: byte;
     Blink: boolean;
@@ -47,10 +28,11 @@ type
     Attributes: byte;
     IsCursorOn: boolean;
     procedure Init; virtual;
-    procedure Assign(state: TTextState); virtual;
+    procedure Assign(var source: TPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
   end;
   PTextMode = ^TTextMode;
-  TTextMode = Object(TObject)
+  TTextMode = Object(TPersistent)
   private
   public
     Width, Height, MaxX, MaxY: integer;
@@ -59,7 +41,8 @@ type
     Description: string;
     HelpText: string;
     procedure Init; virtual;
-    procedure Assign(mode: TTextMode); virtual;
+    procedure Assign(var source: TPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
     constructor CreateEmpty;
   end;
   PTextModeList = ^TTextModeList;
@@ -94,6 +77,7 @@ type
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
     procedure VLine(x1, y1, height: byte; lineStyle: TLineStyle); virtual;
     procedure Box(rect: TRect; style: TLineStyle); virtual;
+    procedure FillRect(rect: TRect); virtual;
     procedure ClrScr; virtual;
     function ForeColor: byte; virtual;
     function BackColor: byte; virtual;
@@ -116,15 +100,32 @@ begin
   IsCursorOn := true;
 end;
 
-procedure TTextState.Assign(state: TTextState);
+procedure TTextState.Assign(var source: TPersistent);
+var
+  state: PTextState;
 begin
-  ForeColor := state.ForeColor;
-  BackColor := state.BackColor;
-  X := state.X;
-  Y := state.Y;
-  Blink := state.Blink;
-  Attributes := state.Attributes;
-  IsCursorOn := state.IsCursorOn;
+  state := @source;
+  ForeColor := state^.ForeColor;
+  BackColor := state^.BackColor;
+  X := state^.X;
+  Y := state^.Y;
+  Blink := state^.Blink;
+  Attributes := state^.Attributes;
+  IsCursorOn := state^.IsCursorOn;
+end;
+
+procedure TTextState.AssignTo(var dest: TPersistent);
+var
+  state: PTextState;
+begin
+  state := @dest;
+  state^.ForeColor := ForeColor;
+  state^.BackColor := BackColor;
+  state^.X := X;
+  state^.Y := Y;
+  state^.Blink := Blink;
+  state^.Attributes := Attributes;
+  state^.IsCursorOn := IsCursorOn;
 end;
 
 procedure TTextMode.Init;
@@ -147,16 +148,34 @@ begin
   Init;
 end;
 
-procedure TTextMode.Assign(mode: TTextMode);
+procedure TTextMode.Assign(var source: TPersistent);
+var
+  mode: PTextMode;
 begin
-    Width := mode.Width;
-    Height := mode.Height;
-    MaxX := mode.MaxX;
-    MaxY := mode.MaxY;
-    Name := mode.Name;
-    AdditionalData := mode.AdditionalData;
-    Description := mode.Description;
-    HelpText := mode.HelpText;
+    mode := @source;
+    Width := mode^.Width;
+    Height := mode^.Height;
+    MaxX := mode^.MaxX;
+    MaxY := mode^.MaxY;
+    Name := mode^.Name;
+    AdditionalData := mode^.AdditionalData;
+    Description := mode^.Description;
+    HelpText := mode^.HelpText;
+end;
+
+procedure TTextMode.AssignTo(var dest: TPersistent);
+var
+  mode: PTextMode;
+begin
+    mode := @dest;
+    mode^.Width := Width;
+    mode^.Height := Height;
+    mode^.MaxX := MaxX;
+    mode^.MaxY := MaxY;
+    mode^.Name := Name;
+    mode^.AdditionalData := AdditionalData;
+    mode^.Description := Description;
+    mode^.HelpText := HelpText;
 end;
 
 function TTextModeList.GetItem(index: integer): PTextMode;
@@ -268,6 +287,10 @@ begin
 end;
 
 procedure TTextDriver.ClrScr;
+begin
+end;
+
+procedure TTextDriver.FillRect(rect: TRect);
 begin
 end;
 
