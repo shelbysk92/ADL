@@ -27,6 +27,7 @@ type
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
     procedure VLine(x1, y1, height: byte; lineStyle: TLineStyle); virtual;
     procedure Box(rect: TRect; style: TLineStyle); virtual;
+    procedure FillRect(rect: TRect); virtual;
     procedure SetXY(newX, newY: byte); virtual;
     procedure CursorOn; virtual;
     procedure CursorOff; virtual;
@@ -62,10 +63,7 @@ var
   ch: TTextChar;
   index: integer;
   offset: PByte;
-  cursorState: boolean;
 begin
-  cursorState := State.IsCursorOn;
-  if CursorState then CursorOff;
   offset := VgaScreen;
   Inc(offset, 2 * (State.Y * Mode.Width + State.X));
   ch.Attributes := State.Attributes;
@@ -81,7 +79,6 @@ begin
     end;
   end;
   SetXY(state.X, state.Y);
-  if CursorState then CursorOn;
 end;
 
 procedure TVgaTextDriver.WriteWide(txt: TWideString);
@@ -89,10 +86,7 @@ var
   ch: TTextChar;
   index: integer;
   offset: PByte;
-  cursorState: boolean;
 begin
-  cursorState := State.IsCursorOn;
-  if CursorState then CursorOff;
   offset := VgaScreen;
   Inc(offset, 2 * (State.Y * Mode.Width + State.X));
   ch.Attributes := State.Attributes;
@@ -108,7 +102,6 @@ begin
     end;
   end;
   SetXY(state.X, state.Y);
-  if CursorState then CursorOn;
 end;
 
 procedure TVgaTextDriver.SetBlink(doBlink: boolean);
@@ -281,26 +274,35 @@ end;
 
 procedure TVgaTextDriver.ClrScr;
 var
+  rect: TRect;
+begin
+  rect.Create(0, 0, Mode.Width, Mode.Height);
+  FillRect(Rect);
+end;
+
+procedure TVgaTextDriver.FillRect(rect: TRect);
+var
   ch: TTextChar;
   index: integer;
   offset: PByte;
   line, linePtr: PByte;
 begin
-  GetMem(line, Mode.Width * 2);
+  GetMem(line, rect.Width * 2);
   offset := VgaScreen;
   ch.Attributes := State.Attributes;
   ch.Character := #32;
   linePtr := line;
-  for index := 0 to Mode.MaxX do begin
+  for index := 0 to rect.Width - 1 do begin
     Move(ch, linePtr^, 2);
     Inc(linePtr, 2);
   end;
-  for index := 0 to Mode.MaxY do begin
+  Inc(offset, 2 * (rect.Y * Mode.Width + rect.X));
+  for index := rect.Y to rect.Bottom do begin
     Move(line^, offset^, Mode.Width * 2);
     Inc(offset, Mode.Width * 2);
   end;
   SetXY(0, 0);
-  FreeMem(line, Mode.Width * 2);
+  FreeMem(line, rect.Width);
 end;
 
 destructor TVgaTextDriver.Done;
