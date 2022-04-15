@@ -3,6 +3,9 @@ unit MouseDrv;
 
 interface
 
+uses
+  Objects;
+
 const
   InitMouseCode = $00;
   ShowMouseCode = $01;
@@ -16,9 +19,17 @@ type
     bsRight
   );
   TButtonStates = set of TButtonState;
-  TMouseState = record
+  PMouseState = ^TMouseState;
+  TMouseState = object(TPersistent)
+  private
+  public
     X, Y: integer;
     ButtonState: TButtonStates;
+    Visible: boolean;
+    procedure Init; virtual;
+    procedure Assign(var source: bTPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
+    function Moved(state: TMouseState): boolean; virtual;
   end;
 
 function InitMouse: boolean;
@@ -106,6 +117,43 @@ const
       0000000000000000
     }
   );
+
+procedure TMouseState.Init;
+begin
+  TObject.Init;
+  TypeName := 'TMouseState';
+  X := 0;
+  Y := 0;
+  ButtonState := [];
+  Visible := false;
+end;
+
+procedure TMouseState.Assign(var source: TPersistent);
+var
+  state: PMouseState;
+begin
+  state := @source;
+  X := state^.X;
+  Y := state^.Y;
+  ButtonState := state^.ButtonState;
+  Visible := state^.Visible;
+end;
+
+procedure TMouseState.AssignTo(var dest: TPersistent);
+var
+  state: PMouseState;
+begin
+  state := @dest;
+  state^.X := X;
+  state^.Y := Y;
+  state^.ButtonState := ButtonState;
+  state^.Visible := Visible;
+end;
+
+function TMouseState.Moved(state: TMouseState): boolean;
+begin
+  Moved := (state.X <> X) or (state.Y <> Y);
+end;
 
 procedure InitMouseCursor;
 var
