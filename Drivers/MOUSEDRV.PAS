@@ -4,7 +4,8 @@ unit MouseDrv;
 interface
 
 uses
-  Objects;
+  Objects,
+  Collects;
 
 const
   InitMouseCode = $00;
@@ -27,17 +28,30 @@ type
     ButtonState: TButtonStates;
     Visible: boolean;
     procedure Init; virtual;
-    procedure Assign(var source: bTPersistent); virtual;
+    procedure Assign(var source: TPersistent); virtual;
     procedure AssignTo(var dest: TPersistent); virtual;
     function Moved(state: TMouseState): boolean; virtual;
+    destructor Done; virtual;
+  end;
+  PMouseDriver = ^PMouseDriver;
+  TMouseDriver = object(TObject)
+  private
+  public
+    State: TMouseState;
+    _stateStack: PStack;
+    procedure Init; virtual;
+    procedure ShowMouse; virtual;
+    procedure HideMouse; virtual;
+    procedure PushState; virtual;
+    procedure PopState; virtual;
+    procedure GetMouseState(var currentState: TMouseState); virtual;
+    procedure InitMouseCursor; virtual;
+    procedure SetMouseResolution(width, height: word); virtual;
+    destructor Done; virtual;
   end;
 
-function InitMouse: boolean;
-procedure ShowMouse;
-procedure HideMouse;
-procedure GetMouseState(var state: TMouseState);
-procedure InitMouseCursor;
-procedure SetMouseResolution(width, height: word);
+var
+  MouseDriver: TMouseDriver;
 
 implementation
 
@@ -128,6 +142,10 @@ begin
   Visible := false;
 end;
 
+destructor TMouseState.Done;
+begin
+end;
+
 procedure TMouseState.Assign(var source: TPersistent);
 var
   state: PMouseState;
@@ -155,7 +173,7 @@ begin
   Moved := (state.X <> X) or (state.Y <> Y);
 end;
 
-procedure InitMouseCursor;
+procedure TMouseDriver.InitMouseCursor;
 var
   reg: Registers;
 begin
@@ -168,7 +186,13 @@ begin
   Intr($33, reg);
 end;
 
-function InitMouse: boolean;
+destructor TMouseDriver.Done;
+begin
+  Dispose(_stateStack);
+  State.Done;
+end;
+
+procedure TMouseDriver.Init;
 var
   reg: Registers;
   success: boolean;
@@ -178,29 +202,53 @@ begin
   reg.AX := InitMouseCode;
   Intr(MouseInterrupt, reg);
   success := Reg.AX = $FFFF;
+  State.Create('');
   if success then InitMouseCursor;
-  InitMouse := true;
+  _stateStack := New(PStack, Create(''));
 end;
 
-procedure ShowMouse;
+procedure TMouseDriver.ShowMouse;
 var
   reg: Registers;
 begin;
   FillChar(reg, SizeOf(reg), 0);
   reg.AX := ShowMouseCode;
   Intr(MouseInterrupt, reg);
+  State.Visible := true;
 end;
 
-procedure HideMouse;
+procedure TMouseDriver.HideMouse;
 var
   reg: Registers;
 begin;
   FillChar(reg, SizeOf(reg), 0);
   reg.AX := HideMouseCode;
   Intr(MouseInterrupt, reg);
+  State.Visible := false;
 end;
 
-procedure SetMouseResolution(width, height: word);
+procedure TMouseDriver.PushState;
+var
+  newState: PMouseState;
+begin
+  newState := New(PMouseState, Create(''));
+  newState^.Assign(State);
+  _stateStack^.Push(newState);
+end;
+
+procedure TMouseDriver.PopState;
+var
+  newState: PMouseState;
+begin
+  newState := PMouseState(_stateStack^.Pop);
+  if (newState = nil) then exit;
+  State.Assign(newState^);
+  Dispose(newState, Done);
+  if (State.Visible) then ShowMouse
+  else HideMouse;
+end;
+
+procedure TMouseDriver.SetMouseResolution(width, height: word);
 begin
   Dec(width, 1);
   Dec(height, 1);
@@ -216,20 +264,20 @@ begin
   end;
 end;
 
-procedure GetMouseState(var state: TMouseState);
+procedure TMouseDriver.GetMouseState(var currentState: TMouseState);
 var
   reg: Registers;
 begin
   FillChar(reg, SizeOf(reg), 0);
-  FillChar(state, SizeOf(state), 0);
+  currentState.Create('');
   reg.AX := GetMouseStatusCode;
   Intr(MouseInterrupt, reg);
-  state.X := reg.CX;
-  state.Y := reg.DX;
+  currentState.X := reg.CX;
+  currentState.Y := reg.DX;
   if (reg.BX and $01 > 0) then
-    Include(state.ButtonState, bsLeft);
+    Include(currentState.ButtonState, bsLeft);
   if (reg.BX and $02 > 0) then
-    Include(state.ButtonState, bsRight);
+    Include(currentState.ButtonState, bsRight);
 end;
 
 end.

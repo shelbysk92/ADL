@@ -2,7 +2,6 @@ unit ImgFile;
 
 interface
 uses
-  VgaGraph,
   Utils;
 
 const

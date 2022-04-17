@@ -215,6 +215,9 @@ begin
   if (newState = nil) then exit;
   State.Assign(newState^);
   Dispose(newState, Done);
+  if (State.IsCursorOn) then CursorOn
+  else CursorOff;
+  SetXY(State.X, State.Y);
 end;
 
 procedure TTextDriver.SetXY(newX, newY: byte);

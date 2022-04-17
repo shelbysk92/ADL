@@ -1,4 +1,4 @@
-unit VgaTxDrv;
+unit DirTxDrv;
 
 interface
 
@@ -12,9 +12,10 @@ uses
   TextDrv;
 
 type
-  PVgaTextDriver = ^TVgaTextDriver;
-  TVgaTextDriver = object(TTextDriver)
+  PDirectTextDriver = ^TDirectTextDriver;
+  TDirectTextDriver = object(TTextDriver)
   private
+    _startMode: byte;
     function GetTextAttributes(fore, back: byte; doBlink: boolean): byte; virtual;
   public
     procedure Write(const txt: string); virtual;
@@ -38,33 +39,43 @@ type
 implementation
 
 const
-  VgaScreen: PByte = Ptr($B800, $0000);
+  ColorScreen: PByte = Ptr($B800, $0000);
+  MonoScreen: PByte = Ptr($B000, $000);
 
 type
-  TVga80x25Screen = array[0..24, 0..79] of byte;
+  TColor80x25Screen = array[0..24, 0..79] of byte;
 
 var
   _currentScreen: PByte;
 
-procedure TVgaTextDriver.SetMode(newMode: TTextMode);
+procedure TDirectTextDriver.SetMode(newMode: TTextMode);
 begin
   Mode.Assign(newMode);
+  _startMode := LastMode;
+  if (newMode.Id = 'Mono') then
+    _currentScreen := MonoScreen
+  else
+    _currentScreen := ColorScreen;
+  TextMode(Mode.AdditionalData);
+  Mode.Height := Hi(WindMax) + 1;
+  Mode.MaxY := Hi(WindMax);
+  ClrScr;
   CursorOn;
 end;
 
-procedure TVgaTextDriver.SetXY(newX, newY: byte);
+procedure TDirectTextDriver.SetXY(newX, newY: byte);
 begin
   TTextDriver.SetXY(newX, newY);
   GotoXY(newX + 1, newY + 1);
 end;
 
-procedure TVgaTextDriver.Write(const txt: string);
+procedure TDirectTextDriver.Write(const txt: string);
 var
   ch: TTextChar;
   index: integer;
   offset: PByte;
 begin
-  offset := VgaScreen;
+  offset := _currentScreen;
   Inc(offset, 2 * (State.Y * Mode.Width + State.X));
   ch.Attributes := State.Attributes;
   for index := 1 to Length(txt) do begin
@@ -81,13 +92,13 @@ begin
   SetXY(state.X, state.Y);
 end;
 
-procedure TVgaTextDriver.WriteWide(txt: TWideString);
+procedure TDirectTextDriver.WriteWide(txt: TWideString);
 var
   ch: TTextChar;
   index: integer;
   offset: PByte;
 begin
-  offset := VgaScreen;
+  offset := _currentScreen;
   Inc(offset, 2 * (State.Y * Mode.Width + State.X));
   ch.Attributes := State.Attributes;
   for index := 1 to txt.Len do begin
@@ -104,25 +115,25 @@ begin
   SetXY(state.X, state.Y);
 end;
 
-procedure TVgaTextDriver.SetBlink(doBlink: boolean);
+procedure TDirectTextDriver.SetBlink(doBlink: boolean);
 begin
   TTextDriver.SetBlink(doBlink);
   State.Attributes := GetTextAttributes(State.ForeColor, State.BackColor, State.Blink);
 end;
 
-procedure TVgaTextDriver.SetForeColor(color: byte);
+procedure TDirectTextDriver.SetForeColor(color: byte);
 begin
   TTextDriver.SetForeColor(color);
   State.Attributes := GetTextAttributes(State.ForeColor, State.BackColor, State.Blink);
 end;
 
-procedure TVgaTextDriver.SetBackColor(color: byte);
+procedure TDirectTextDriver.SetBackColor(color: byte);
 begin
   TTextDriver.SetBackColor(color);
   State.Attributes := GetTextAttributes(State.ForeColor, State.BackColor, State.Blink);
 end;
 
-procedure TVgaTextDriver.CursorOn;
+procedure TDirectTextDriver.CursorOn;
 begin
   TTextDriver.CursorOn;
   asm
@@ -136,7 +147,7 @@ begin
   end;
 end;
 
-procedure TVgaTextDriver.CursorOff;
+procedure TDirectTextDriver.CursorOff;
 begin
   TTextDriver.CursorOff;
   asm
@@ -150,7 +161,7 @@ begin
   end;
 end;
 
-function TVgaTextDriver.GetTextAttributes(fore, back: byte; doBlink: boolean): byte;
+function TDirectTextDriver.GetTextAttributes(fore, back: byte; doBlink: boolean): byte;
 var
   blinkByte : byte;
 begin
@@ -159,41 +170,106 @@ begin
   GetTextAttributes := fore or (back shl 4) or (byte(doBlink) shl 7);
 end;
 
-procedure TVgaTextDriver.Init;
+procedure TDirectTextDriver.Init;
 var
   newMode: PTextMode;
 begin
   TTextDriver.Init;
-  TypeName := 'TVgaTextDriver';
+  TypeName := 'TDirectTextDriver';
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
-    Id := 'VgaText80x25';
-    Width := 80;
+    Id := 'BW40';
+    Width := 40;
     Height := 25;
-    MaxX := 79;
+    MaxX := 39;
     MaxY := 24;
-    Name := 'Text 80x25 16 color';
-    AdditionalData := 0;
-    Description := 'VGA Text 80x25x16 color';
+    Name := 'BW40';
+    AdditionalData := BW40;
+    Description := '40x25 B/W on color adapter';
     HelpText := '';
     Modes.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
-    Id := 'VgaText80x50';
+    Id := 'BW80';
+    Width := 80;
+    Height := 25;
+    MaxX := 79;
+    MaxY := 24;
+    Name := 'BW80';
+    AdditionalData := BW80;
+    Description := '80x25 B/W on color adapter';
+    HelpText := '';
+    Modes.Add(newMode);
+  end;
+  newMode := New(PTextMode, CreateEmpty);
+  with newMode^ do begin
+    Id := 'Mono';
+    Width := 80;
+    Height := 25;
+    MaxX := 79;
+    MaxY := 24;
+    Name := 'Mono';
+    AdditionalData := Mono;
+    Description := '80x25 B/W on monochrome adapter';
+    HelpText := '';
+    Modes.Add(newMode);
+  end;
+  newMode := New(PTextMode, CreateEmpty);
+  with newMode^ do begin
+    Id := 'CO40';
+    Width := 40;
+    Height := 25;
+    MaxX := 39;
+    MaxY := 24;
+    Name := 'CO40';
+    AdditionalData := CO40;
+    Description := '40x25 color on color adapter';
+    HelpText := '';
+    Modes.Add(newMode);
+  end;
+  newMode := New(PTextMode, CreateEmpty);
+  with newMode^ do begin
+    Id := 'CO408x8';
+    Width := 40;
+    Height := 25;
+    MaxX := 39;
+    MaxY := 24;
+    Name := 'CO40';
+    AdditionalData := CO40 + Font8x8;
+    Description := '40x25 color on color adapter with 8x8 font';
+    HelpText := '';
+    Modes.Add(newMode);
+  end;
+  newMode := New(PTextMode, CreateEmpty);
+  with newMode^ do begin
+    Id := 'CO80';
+    Width := 80;
+    Height := 25;
+    MaxX := 79;
+    MaxY := 24;
+    Name := 'CO80';
+    AdditionalData := CO80;
+    Description := '80x25 color on color adapter';
+    HelpText := '';
+    Modes.Add(newMode);
+  end;
+  newMode := New(PTextMode, CreateEmpty);
+  with newMode^ do begin
+    Id := 'CO808x8';
     Width := 80;
     Height := 50;
     MaxX := 79;
     MaxY := 49;
-    Name := 'Text 80x50 16 color';
-    AdditionalData := 0;
-    Description := 'VGA Text 80x50x16 color';
+    Name := 'CO80';
+    AdditionalData := CO80 + Font8x8;
+    Description := '80x25 color on color adapter with 8x8 font';
     HelpText := '';
     Modes.Add(newMode);
   end;
 end;
 
-procedure TVgaTextDriver.HLine(x1, y1, width: byte; lineStyle: TLineStyle);
+procedure TDirectTextDriver.HLine(x1, y1, width: byte; lineStyle: TLineStyle);
 var
   ch: TTextChar;
   index: integer;
@@ -205,7 +281,7 @@ begin
   ch.Attributes := State.Attributes;
   ch.Character := #196;
   if (lineStyle = lsDouble) then ch.Character := #205;
-  Offset := VgaScreen;
+  Offset := _currentScreen;
   Inc(offset, 2 * (y1 * Mode.Width + x1));
   for index := 0 to width - 1 do begin
     Move(ch, offset^, 2);
@@ -214,7 +290,7 @@ begin
   if CursorState then CursorOn;
 end;
 
-procedure TVgaTextDriver.VLine(x1, y1, height: byte; lineStyle: TLineStyle);
+procedure TDirectTextDriver.VLine(x1, y1, height: byte; lineStyle: TLineStyle);
 var
   ch: TTextChar;
   index: integer;
@@ -226,7 +302,7 @@ begin
   ch.Attributes := State.Attributes;
   ch.Character := #179;
   if (lineStyle = lsDouble) then ch.Character := #186;
-  offset := VgaScreen;
+  offset := _currentScreen;
   Inc(offset, 2 * (y1 * Mode.Width + x1));
   for index := y1 to y1 + height - 1 do begin
     Move(ch, offset^, 2);
@@ -235,7 +311,7 @@ begin
   if CursorState then CursorOn;
 end;
 
-procedure TVgaTextDriver.Box(rect: TRect; style: TLineStyle);
+procedure TDirectTextDriver.Box(rect: TRect; style: TLineStyle);
 var
   ch: TTextChar;
   offset: PByte;
@@ -244,25 +320,25 @@ begin
 
   ch.Character := #218;
   if (style = lsDouble) then ch.Character := #201;
-  offset := VgaScreen;
+  offset := _currentScreen;
   Inc(offset, 2 * (rect.Y * Mode.Width + rect.X));
   Move(ch, offset^, 2);
 
   ch.Character := #191;
   if (style = lsDouble) then ch.Character := #187;
-  offset := VgaScreen;
+  offset := _currentScreen;
   Inc(offset, 2 * (rect.Y * Mode.Width + rect.X + rect.Width - 1));
   Move(ch, offset^, 2);
 
   ch.Character := #192;
   if (style = lsDouble) then ch.Character := #200;
-  offset := VgaScreen;
+  offset := _currentScreen;
   Inc(offset, 2 * ((rect.Y + rect.Height - 1) * Mode.Width + rect.X));
   Move(ch, offset^, 2);
 
   ch.Character := #217;
   if (style = lsDouble) then ch.Character := #188;
-  offset := VgaScreen;
+  offset := _currentScreen;
   Inc(offset, 2 * ((rect.Y + rect.Height - 1) * Mode.Width + rect.X + rect.Width - 1));
   Move(ch, offset^, 2);
 
@@ -272,7 +348,7 @@ begin
   VLine(rect.X + rect.Width - 1, rect.Y + 1, rect.Height - 2, style);
 end;
 
-procedure TVgaTextDriver.ClrScr;
+procedure TDirectTextDriver.ClrScr;
 var
   rect: TRect;
 begin
@@ -280,7 +356,7 @@ begin
   FillRect(Rect);
 end;
 
-procedure TVgaTextDriver.FillRect(rect: TRect);
+procedure TDirectTextDriver.FillRect(rect: TRect);
 var
   ch: TTextChar;
   index: integer;
@@ -288,7 +364,7 @@ var
   line, linePtr: PByte;
 begin
   GetMem(line, rect.Width * 2);
-  offset := VgaScreen;
+  offset := _currentScreen;
   ch.Attributes := State.Attributes;
   ch.Character := #32;
   linePtr := line;
@@ -298,18 +374,17 @@ begin
   end;
   Inc(offset, 2 * (rect.Y * Mode.Width + rect.X));
   for index := rect.Y to rect.Bottom do begin
-    Move(line^, offset^, Mode.Width * 2);
+    Move(line^, offset^, rect.Width * 2);
     Inc(offset, Mode.Width * 2);
   end;
   SetXY(0, 0);
-  FreeMem(line, rect.Width);
+  FreeMem(line, rect.Width * 2);
 end;
 
-destructor TVgaTextDriver.Done;
+destructor TDirectTextDriver.Done;
 begin
   TTextDriver.Done;
 end;
 
 begin
-  VgaScreen := Ptr($B800, $0000);
 end.

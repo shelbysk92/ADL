@@ -91,8 +91,8 @@ begin
       ' bytes XMS memory available.'
     );
   end;
-  InitMouse;
-  HideMouse;
+  MouseDriver.Create('');
+  MouseDriver.HideMouse;
   WriteLn('Mouse initialized.');
 {  Keyboard.Create;}
   Closed := false;

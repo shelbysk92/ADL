@@ -6,13 +6,15 @@ interface
 uses
  Objects,
  TextDrv,
- VgaTxDrv;
+ DirTxDrv,
+ CrtTxDrv;
 
 type
   TTextDrivers =
   (
-    tdVga,
-    tdAnsi
+    tdDirect,
+    tdAnsi,
+    tdCrt
   );
   PTextDriverFactory = ^TTextDriverFactory;
   TTextDriverFactory = object(TBaseObject)
@@ -30,10 +32,13 @@ end;
 procedure TTextDriverFactory.CreateTextDriver(driverId: TTextDrivers; var driver);
 begin
   case driverId of
-    tdVga: begin
-      TVgaTextDriver(driver).Create('VGA Text Driver');
+    tdDirect: begin
+      TDirectTextDriver(driver).Create('VGA Text Driver');
     end;
     tdAnsi: begin
+    end;
+    tdCrt: begin
+      TCrtTextDriver(driver).Create('Crt Text Driver');
     end;
   end;
 end;
