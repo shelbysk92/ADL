@@ -49,7 +49,7 @@ type
   end;
   TRgbPalette = array[byte] of TRgbColor;
   PGraphicsMode = ^TGraphicsMode;
-  TGraphicsMode = object(TObject)
+  TGraphicsMode = object(TPersistent)
   public
     Width, Height: integer;
     MaxX, MaxY: integer;
@@ -58,8 +58,10 @@ type
     Description: string;
     HelpText: string;
     constructor CreateEmpty;
-    constructor CreateAssign(mode:  TGraphicsMode);
-    procedure Assign(mode: TGraphicsMode); virtual;
+    constructor CreateAssign(newId: string; mode:  TGraphicsMode);
+    procedure Assign(var source: TPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
+    procedure Init; virtual;
   end;
   PGraphicsModeList = ^TGraphicsModeList;
   TGraphicsModeList = object(TObjectList)
@@ -68,13 +70,15 @@ type
     function IndexOf(item: PGraphicsMode): integer;
     function Add(item: PGraphicsMode): integer;
     procedure Insert(index: integer; item: PGraphicsMode);
+    function Where(predicate: TPredicate; var value): PGraphicsModeList;
   end;
   PGraphicsDriver = ^TGraphicsDriver;
   PFont = ^TFont;
-  TFont = object(TObject)
+  TFont = object(TPersistent)
   private
     _fontData: PByte;
     _maxWidth: integer;
+    _fontDataSize: integer;
   public
     Version: real;
     TransparentColor: byte;
@@ -82,9 +86,10 @@ type
     Initialized: boolean;
     Height: integer;
     constructor Create(newId: string);
-    constructor CreateAssign(font: TFont);
+    constructor CreateAssign(newId: string; font: TFont);
     destructor Done; virtual;
-    procedure Assign(font: TFont); virtual;
+    procedure Assign(var source: TPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
     procedure Init; virtual;
     procedure ReadFromStream(stream: TStream; var error: TError); virtual;
     procedure WriteToStream(stream: TStream; var error: TError); virtual;
@@ -108,8 +113,8 @@ type
     procedure Init; virtual;
     destructor Done; virtual;
   end;
-  PGraphicsSettings = ^TGraphicsSettings;
-  TGraphicsSettings = object(TPersistent)
+  PGraphicsState = ^TGraphicsState;
+  TGraphicsState = object(TPersistent)
   private
   public
     ForeColor: byte;
@@ -122,7 +127,7 @@ type
   end;
   TGraphicsDriver = object(TObject)
   private
-    _settings: PGraphicsSettings;
+    _state: PGraphicsState;
     _stateStack: TStack;
     _oldMode: byte;
   public
@@ -181,44 +186,44 @@ begin
   ClearError(Error);
   Modes.Create('GraphicsModes');
   Mode^.CreateEmpty;
-  _settings := New(PGraphicsSettings, Create('GraphSettings'));
+  _state := New(PGraphicsState, Create('Graphstate'));
   _stateStack.Create('StateStack');
   MoveTo(0, 0);
 end;
 
 function TGraphicsDriver.ForeColor: byte;
 begin
-  ForeColor := _settings^.ForeColor;
+  ForeColor := _state^.ForeColor;
 end;
 
 function TGraphicsDriver.BackColor: byte;
 begin
-  BackColor := _settings^.BackColor;
+  BackColor := _state^.BackColor;
 end;
 
 function TGraphicsDriver.Font: PFont;
 begin
-  Font := _settings^.Font;
+  Font := _state^.Font;
 end;
 
 function TGraphicsDriver.XPos: byte;
 begin
-  XPos := _settings^.XPos;
+  XPos := _state^.XPos;
 end;
 
 function TGraphicsDriver.YPos: byte;
 begin
-  YPos := _settings^.YPos;
+  YPos := _state^.YPos;
 end;
 
 procedure TGraphicsDriver.SetForeColor(color: byte);
 begin
-  _settings^.ForeColor := color;
+  _state^.ForeColor := color;
 end;
 
 procedure TGraphicsDriver.SetBackColor(color: byte);
 begin
-  _settings^.BackColor := color;
+  _state^.BackColor := color;
 end;
 
 function TGraphicsDriver.GetPixel(x, y: integer): byte;
@@ -412,26 +417,26 @@ end;
 
 procedure TGraphicsDriver.SetFont(newFont: PFont);
 begin
-  _settings^.Font := newFont;
+  _state^.Font := newFont;
 end;
 
 procedure TGraphicsDriver.PushState;
 var
-  settings: PGraphicsSettings;
+  state: PGraphicsState;
 begin
-  settings := New(PGraphicsSettings, Create('StackSettings'));
-  settings^.Assign(_settings^);
-  _stateStack.Push(settings);
+  state := New(PGraphicsState, Create('Stackstate'));
+  state^.Assign(_state^);
+  _stateStack.Push(state);
 end;
 
 procedure TGraphicsDriver.PopState;
 var
-  settings: PGraphicsSettings;
+  state: PGraphicsState;
 begin
-  settings := PGraphicsSettings(_stateStack.Pop);
-  if (settings = nil) then exit;
-  _settings^.Assign(settings^);
-  Dispose(settings, Done);
+  state := PGraphicsState(_stateStack.Pop);
+  if (state = nil) then exit;
+  _state^.Assign(state^);
+  Dispose(state, Done);
 end;
 
 destructor TGraphicsDriver.Done;
@@ -445,7 +450,7 @@ begin
     int 10h
   end;
   _stateStack.Done;
-  Dispose(_settings, Done);
+  Dispose(_state, Done);
 end;
 
 function TGraphicsDriver.GetColor(color: TStandardColor; intensity: byte): byte;
@@ -469,21 +474,48 @@ begin
   HelpText := '';
 end;
 
-constructor TGraphicsMode.CreateAssign(mode: TGraphicsMode);
+constructor TGraphicsMode.CreateAssign(newId: string; mode: TGraphicsMode);
 begin
+  Id := newId;
+  Create(newId);
   Assign(mode);
+  Init;
 end;
 
-procedure TGraphicsMode.Assign(mode: TGraphicsMode);
+procedure TGraphicsMode.Init;
 begin
-  Width := mode.Width;
-  Height := mode.Height;
-  MaxX := mode.MaxX;
-  MaxY := mode.MaxY;
-  Bpp := mode.Bpp;
-  Description := mode.Description;
-  AdditionalData := mode.AdditionalData;
-  HelpText := mode.HelpText;
+  TPersistent.Init;
+  TypeName := 'TGraphicsMode';
+end;
+
+procedure TGraphicsMode.Assign(var source: TPersistent);
+var
+  mode: PGraphicsMode;
+begin
+  mode := PGraphicsMode(@source);
+  Width := mode^.Width;
+  Height := mode^.Height;
+  MaxX := mode^.MaxX;
+  MaxY := mode^.MaxY;
+  Bpp := mode^.Bpp;
+  Description := mode^.Description;
+  AdditionalData := mode^.AdditionalData;
+  HelpText := mode^.HelpText;
+end;
+
+procedure TGraphicsMode.AssignTo(var dest: TPersistent);
+var
+  mode: PGraphicsMode;
+begin
+  mode := PGraphicsMode(@dest);
+  mode^.Width := Width;
+  mode^.Height := Height;
+  mode^.MaxX := MaxX;
+  mode^.MaxY := MaxY;
+  mode^.Bpp := Bpp;
+  mode^.Description := Description;
+  mode^.AdditionalData := AdditionalData;
+  mode^.HelpText := HelpText;
 end;
 
 function TGraphicsModeList.GetItem(index: integer): PGraphicsMode;
@@ -506,27 +538,71 @@ begin
   TObjectList.Insert(index, item);
 end;
 
+function TGraphicsModeList.Where(predicate: TPredicate; var value): PGraphicsModeList;
+begin
+  Where := PGraphicsModeList(TList.Where(predicate, value));
+end;
+
 constructor TFont.Create(newId: string);
 begin
   Id := newId;
   Init;
 end;
 
-constructor TFont.CreateAssign(font: TFont);
+constructor TFont.CreateAssign(newId: string; font: TFont);
 begin
+  Id := newId;
+  Init;
+  Assign(font);
 end;
 
 destructor TFont.Done;
 begin
+  if (_fontData <> nil) then
+    FreeMem(_fontData, _fontDataSize);
 end;
 
-procedure TFont.Assign(font: TFont);
+procedure TFont.Assign(var source: TPersistent);
+var
+  font: PFont;
 begin
+  font := PFont(@source);
+  if (_fontData <> nil) then begin
+    FreeMem(_fontData, _fontDataSize);
+    GetMem(_fontData, font^._fontDataSize);
+    Move(font^._fontData^, _fontData^, font^._fontDataSize);
+  end;
+  _fontDataSize := font^._fontDataSize;
+  _maxWidth := font^._maxWidth;
+  Version := font^.Version;
+  TransparentColor := font^.TransparentColor;
+  Transparent := font^.Transparent;
+  Initialized := font^.Initialized;
+  Height := font^.Height;
+end;
+
+procedure TFont.AssignTo(var dest: TPersistent);
+var
+  font: PFont;
+begin
+  font := PFont(@dest);
+  if (font^._fontData <> nil) then begin
+    FreeMem(font^._fontData,font^._fontDataSize);
+    GetMem(font^._fontData, _fontDataSize);
+    Move(_fontData^, font^._fontData^, _fontDataSize);
+  end;
+  font^._fontDataSize := _fontDataSize;
+  font^._maxWidth := _maxWidth;
+  font^.Version := Version;
+  font^.TransparentColor := TransparentColor;
+  font^.Transparent := Transparent;
+  font^.Initialized := Initialized;
+  font^.Height := Height;
 end;
 
 procedure TFont.Init;
 begin
-  TObject.Init;
+  TPersistent.Init;
   TypeName := 'TFont';
   _fontData := nil;
   Version := 1.0;
@@ -630,10 +706,10 @@ begin
   PixelSet := line and (1 shl x) > 0;
 end;
 
-procedure TGraphicsSettings.Init;
+procedure TGraphicsState.Init;
 begin
   TPersistent.Init;
-  TypeName := 'TGraphicsSettings';
+  TypeName := 'TGraphicsState';
   ForeColor := 0;
   BackColor := 0;
   XPos := 0;
@@ -641,28 +717,28 @@ begin
   Font := nil;
 end;
 
-procedure TGraphicsSettings.Assign(var source: TPersistent);
+procedure TGraphicsState.Assign(var source: TPersistent);
 var
-  settings: PGraphicsSettings;
+  state: PGraphicsState;
 begin
-  settings := PGraphicsSettings(@source);
-  ForeColor := settings^.ForeColor;
-  BackColor := settings^.BackColor;
-  XPos := settings^.XPos;
-  YPos := settings^.YPos;
-  Font := settings^.Font;
+  state := PGraphicsState(@source);
+  ForeColor := state^.ForeColor;
+  BackColor := state^.BackColor;
+  XPos := state^.XPos;
+  YPos := state^.YPos;
+  Font^.Assign(state^.Font^);
 end;
 
-procedure TGraphicsSettings.AssignTo(var dest: TPersistent);
+procedure TGraphicsState.AssignTo(var dest: TPersistent);
 var
-  settings: PGraphicsSettings;
+  state: PGraphicsState;
 begin
-  settings := PGraphicsSettings(@dest);
-  settings^.ForeColor := ForeColor;
-  settings^.BackColor := BackColor;
-  settings^.XPos := XPos;
-  settings^.YPos := YPos;
-  settings^.Font := Font;
+  state := PGraphicsState(@dest);
+  state^.ForeColor := ForeColor;
+  state^.BackColor := BackColor;
+  state^.XPos := XPos;
+  state^.YPos := YPos;
+  state^.Font^.AssignTo(Font^);
 end;
 
 end.

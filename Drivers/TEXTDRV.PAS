@@ -8,6 +8,7 @@ uses
   Consts,
   Utils,
   Drawing,
+  GraphDrv,
   WideStr;
 
 type
@@ -62,6 +63,7 @@ type
     Modes: TTextModeList;
     Error: TError;
     State: TTextState;
+    Graphics: TGraphicsDriver;
     procedure PushState; virtual;
     procedure PopState; virtual;
     procedure Write(const txt: string); virtual;

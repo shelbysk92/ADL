@@ -7,6 +7,7 @@ uses
  Objects,
  TextDrv,
  DirTxDrv,
+ SVgaText,
  CrtTxDrv;
 
 type
@@ -14,7 +15,8 @@ type
   (
     tdDirect,
     tdAnsi,
-    tdCrt
+    tdCrt,
+    tdSvgaText
   );
   PTextDriverFactory = ^TTextDriverFactory;
   TTextDriverFactory = object(TBaseObject)
@@ -33,7 +35,10 @@ procedure TTextDriverFactory.CreateTextDriver(driverId: TTextDrivers; var driver
 begin
   case driverId of
     tdDirect: begin
-      TDirectTextDriver(driver).Create('VGA Text Driver');
+      TDirectTextDriver(driver).Create('Direct Text Driver');
+    end;
+    tdSvgaText: begin
+      TSvgaTextDriver(driver).Create('SVGA Text Driver');
     end;
     tdAnsi: begin
     end;
