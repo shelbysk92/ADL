@@ -585,7 +585,7 @@ end;
 
 procedure TMemDrv.BeginAllocTransaction;
 begin
-  _transactionReferences := New(PReferenceList, Create('TransactionRefs'));
+  _transactionReferences := New(PReferenceList, Create);
 end;
 
 procedure TMemDrv.CommitAllocTransaction;

@@ -200,7 +200,7 @@ begin
   _canSeek := true;
   _closed := false;
   _length := size;
-  _buffers := New(PReferenceList, Create('Buffers'));
+  _buffers := New(PReferenceList, Create);
   Memory.BeginAllocTransaction;
 
   allocated := 0;

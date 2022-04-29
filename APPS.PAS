@@ -91,7 +91,7 @@ begin
       ' bytes XMS memory available.'
     );
   end;
-  MouseDriver.Create('');
+  MouseDriver.Create;
   MouseDriver.HideMouse;
   WriteLn('Mouse initialized.');
 {  Keyboard.Create;}
@@ -123,6 +123,7 @@ destructor TApplication.Done;
 begin
   TObject.Done;
   Memory.Done;
+  MouseDriver.Done;
 {  Keyboard.Done;}
   while KeyPressed do ReadKey;
 end;

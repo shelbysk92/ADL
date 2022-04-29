@@ -4,6 +4,7 @@ unit GraphDrv;
 interface
 
 uses
+  Crt,
   Objects,
   Utils,
   Dos,
@@ -47,6 +48,8 @@ type
     Green: byte;
     Blue: byte;
   end;
+  PSystemFontData = ^TSystemFontData;
+  TSystemFontData = array[0..255, 0..15] of byte;
   TRgbPalette = array[byte] of TRgbColor;
   PGraphicsMode = ^TGraphicsMode;
   TGraphicsMode = object(TPersistent)
@@ -54,9 +57,11 @@ type
     Width, Height: integer;
     MaxX, MaxY: integer;
     Bpp: byte;
-    AdditionalData: integer;
     Description: string;
     HelpText: string;
+    AdditionalData: integer;
+    Pitch: word;
+    FrameBuffer: pointer;
     constructor CreateEmpty;
     constructor CreateAssign(newId: string; mode:  TGraphicsMode);
     procedure Assign(var source: TPersistent); virtual;
@@ -96,7 +101,7 @@ type
     function CharWidth(ch: char): integer; virtual;
     function TextWidth(text: string): integer; virtual;
     function TextWidthW(text: TWideString): integer; virtual;
-    function PixelSet(ch: char; x, y: integer): boolean; virtual;
+    function PixelSet(ch: char; x, y: byte): boolean; virtual;
   end;
   PMonospaceFont = ^TMonospaceFont;
   TMonospaceFont = object(TFont)
@@ -107,9 +112,13 @@ type
   end;
   PSystemFont = ^TSystemFont;
   TSystemFont = object(TMonospaceFont)
+  private
+    _systemFontData: PSystemFontData;
   public
     function CharWidth(ch: char): integer; virtual;
-    function PixelSet(ch: char; x, y: integer): boolean; virtual;
+    function PixelSet(ch: char; x, y: byte): boolean; virtual;
+    function TextWidth(text: string): integer; virtual;
+    function TextWidthW(text: TWideString): integer; virtual;
     procedure Init; virtual;
     destructor Done; virtual;
   end;
@@ -120,25 +129,24 @@ type
     ForeColor: byte;
     BackColor: byte;
     XPos, YPos: integer;
-    Font: PFont;
     procedure Init; virtual;
     procedure Assign(var source: TPersistent); virtual;
     procedure AssignTo(var dest: TPersistent); virtual;
   end;
   TGraphicsDriver = object(TObject)
   private
-    _state: PGraphicsState;
-    _stateStack: TStack;
+    StateStack: TStack;
     _oldMode: byte;
   public
+    State: PGraphicsState;
     Modes: TGraphicsModeList;
-    Mode: PGraphicsMode;
+    Mode: TGraphicsMode;
     Error: TError;
+    Font: PFont;
     function GetPixel(x, y: integer): byte; virtual;
     function GetColor(color: TStandardColor; intensity: byte): byte; virtual;
     function ForeColor: byte; virtual;
     function BackColor: byte; virtual;
-    function Font: PFont; virtual;
     function XPos: byte; virtual;
     function YPos: byte; virtual;
     procedure GetImage(var buffer: PByte; rect: TRect); virtual;
@@ -158,7 +166,6 @@ type
     procedure DrawTextW(x, y: integer; text: TWideString); virtual;
     procedure SetStandardPalette; virtual;
     procedure SetRgbPalette(palette: TRgbPalette);
-    procedure SetFont(newFont: PFont);
     procedure PushState; virtual;
     procedure PopState; virtual;
     procedure Init; virtual;
@@ -176,54 +183,44 @@ var
 begin
   TObject.Init;
   TypeName := 'TGraphicsDriver';
-  asm
-    mov   al, 00h
-    mov   ah, 0Fh
-    int   10h
-    mov   [oldMode], al
-  end;
-  _oldMode := oldMode;
+  _oldMode := LastMode;
   ClearError(Error);
-  Modes.Create('GraphicsModes');
-  Mode^.CreateEmpty;
-  _state := New(PGraphicsState, Create('Graphstate'));
-  _stateStack.Create('StateStack');
+  Modes.Create;
+  Mode.CreateEmpty;
+  Font := nil;
+  State := New(PGraphicsState, Create);
+  StateStack.Create;
   MoveTo(0, 0);
 end;
 
 function TGraphicsDriver.ForeColor: byte;
 begin
-  ForeColor := _state^.ForeColor;
+  ForeColor := State^.ForeColor;
 end;
 
 function TGraphicsDriver.BackColor: byte;
 begin
-  BackColor := _state^.BackColor;
-end;
-
-function TGraphicsDriver.Font: PFont;
-begin
-  Font := _state^.Font;
+  BackColor := State^.BackColor;
 end;
 
 function TGraphicsDriver.XPos: byte;
 begin
-  XPos := _state^.XPos;
+  XPos := State^.XPos;
 end;
 
 function TGraphicsDriver.YPos: byte;
 begin
-  YPos := _state^.YPos;
+  YPos := State^.YPos;
 end;
 
 procedure TGraphicsDriver.SetForeColor(color: byte);
 begin
-  _state^.ForeColor := color;
+  State^.ForeColor := color;
 end;
 
 procedure TGraphicsDriver.SetBackColor(color: byte);
 begin
-  _state^.BackColor := color;
+  State^.BackColor := color;
 end;
 
 function TGraphicsDriver.GetPixel(x, y: integer): byte;
@@ -415,42 +412,30 @@ begin
   end;
 end;
 
-procedure TGraphicsDriver.SetFont(newFont: PFont);
-begin
-  _state^.Font := newFont;
-end;
-
 procedure TGraphicsDriver.PushState;
 var
-  state: PGraphicsState;
+  newState: PGraphicsState;
 begin
-  state := New(PGraphicsState, Create('Stackstate'));
-  state^.Assign(_state^);
-  _stateStack.Push(state);
+  newState := New(PGraphicsState, Create);
+  newState^.Assign(State^);
+  StateStack.Push(newState);
 end;
 
 procedure TGraphicsDriver.PopState;
 var
-  state: PGraphicsState;
+  newState: PGraphicsState;
 begin
-  state := PGraphicsState(_stateStack.Pop);
-  if (state = nil) then exit;
-  _state^.Assign(state^);
-  Dispose(state, Done);
+  newState := PGraphicsState(StateStack.Pop);
+  if (newState = nil) then exit;
+  State^.Assign(newState^);
+  Dispose(newState, Done);
 end;
 
 destructor TGraphicsDriver.Done;
-var
-  oldMode: byte;
 begin
-  oldMode := _oldMode;
-  asm
-    mov ah, 00h
-    mov al, [oldMode]
-    int 10h
-  end;
-  _stateStack.Done;
-  Dispose(_state, Done);
+  TextMode(_oldMode);
+  StateStack.Done;
+  Dispose(State, Done);
 end;
 
 function TGraphicsDriver.GetColor(color: TStandardColor; intensity: byte): byte;
@@ -464,6 +449,8 @@ begin
 end;
 
 constructor TGraphicsMode.CreateEmpty;
+var
+  index: integer;
 begin
   Width := 0;
   Height := 0;
@@ -471,13 +458,15 @@ begin
   MaxY := 0;
   Bpp := 0;
   AdditionalData := -1;
+  Pitch := 0;
   HelpText := '';
+  FrameBuffer := nil;
 end;
 
 constructor TGraphicsMode.CreateAssign(newId: string; mode: TGraphicsMode);
 begin
   Id := newId;
-  Create(newId);
+  CreateId(newId);
   Assign(mode);
   Init;
 end;
@@ -501,6 +490,10 @@ begin
   Description := mode^.Description;
   AdditionalData := mode^.AdditionalData;
   HelpText := mode^.HelpText;
+  Id := mode^.Id;
+  TypeName := mode^.TypeName;
+  Pitch := mode^.Pitch;
+  FrameBuffer := mode^.FrameBuffer;
 end;
 
 procedure TGraphicsMode.AssignTo(var dest: TPersistent);
@@ -516,6 +509,10 @@ begin
   mode^.Description := Description;
   mode^.AdditionalData := AdditionalData;
   mode^.HelpText := HelpText;
+  mode^.Pitch := Pitch;
+  mode^.TypeName := TypeName;
+  mode^.Id := Id;
+  mode^.FrameBuffer := FrameBuffer;
 end;
 
 function TGraphicsModeList.GetItem(index: integer): PGraphicsMode;
@@ -587,7 +584,7 @@ var
 begin
   font := PFont(@dest);
   if (font^._fontData <> nil) then begin
-    FreeMem(font^._fontData,font^._fontDataSize);
+    FreeMem(font^._fontData, font^._fontDataSize);
     GetMem(font^._fontData, _fontDataSize);
     Move(_fontData^, font^._fontData^, _fontDataSize);
   end;
@@ -609,6 +606,7 @@ begin
   TransparentColor := 0;
   Transparent := true;
   Initialized := true;
+  Height := 0;
 end;
 
 procedure TFont.ReadFromStream(stream: TStream; var error: TError);
@@ -631,7 +629,7 @@ function TFont.TextWidthW(text: TWideString): integer;
 begin
 end;
 
-function TFont.PixelSet(ch: char; x, y: integer): boolean;
+function TFont.PixelSet(ch: char; x, y: byte): boolean;
 begin
 end;
 
@@ -642,52 +640,52 @@ begin
 end;
 
 function TMonospaceFont.TextWidth(text: string): integer;
-var
-  width: integer;
 begin
-  width := Length(text) * _maxWidth * 8;
-  Inc(width, MaxL(Length(text) - 1, 0));
-  TextWidth := width;
 end;
 
 function TMonospaceFont.TextWidthW(text: TWideString): integer;
+begin
+end;
+
+function TSystemFont.TextWidth(text: string): integer;
 var
   width: integer;
 begin
-  width := text.Len * _maxWidth * 8;
-  Inc(width, MaxL(text.Len - 1, 0));
+  width := Length(text) * 8;
+  TextWidth := width;
+end;
+
+function TSystemFont.TextWidthW(text: TWideString): integer;
+var
+  width: integer;
+begin
+  width := text.Len * 8;
   TextWidthW := width;
 end;
 
 procedure TSystemFont.Init;
 var
-  fontSeg: word;
-  fontOff: word;
-  fontPtr: pointer;
+  regs: Registers;
+  fontPtr: PSystemFontData;
 begin
   TMonospaceFont.Init;
   TypeName := 'TSystemFont';
-  Height := 16;
+  Id := 'System';
   _maxWidth := 8;
-  asm
-    push es
-    push bp
-    mov ax, 1130h
-    mov bh, 6
-    int 10h
-    mov [fontSeg], es
-    mov [fontOff], bp
-    pop bp
-    pop es
-  end;
-  fontPtr := Ptr(fontSeg, fontOff);
-  GetMem(_fontData, 256 * 16);
-  Move(fontPtr^, _fontData^, 256 * 16);
+  FillChar(regs, SizeOf(regs), 0);
+  regs.ax := $1130;
+  regs.bh := $06;
+  Intr($10, regs);
+  Height := regs.cx;
+  fontPtr := Ptr(regs.es, regs.bp);
+  GetMem(_systemFontData, 256 * Height);
+  Move(fontPtr^, _systemfontData^, 256 * Height);
 end;
 
 destructor TSystemFont.Done;
 begin
-  FreeMem(_fontData, 256 * 16);
+  FreeMem(_systemFontData, 256 * Height);
+  TMonospaceFont.Done;
 end;
 
 function TSystemFont.CharWidth(ch: char): integer;
@@ -695,15 +693,9 @@ begin
   CharWidth := 8;
 end;
 
-function TSystemFont.PixelSet(ch: char; x, y: integer): boolean;
-var
-  pixelPtr : PByte;
-  line: byte;
+function TSystemFont.PixelSet(ch: char; x, y: byte): boolean;
 begin
-  pixelPtr := _fontData;
-  Inc(pixelPtr, ord(ch) * 16 + y * 8);
-  line := pixelPtr^;
-  PixelSet := line and (1 shl x) > 0;
+  PixelSet := _systemFontData^[ord(ch), y] and (128 shr x) > 0;
 end;
 
 procedure TGraphicsState.Init;
@@ -714,7 +706,6 @@ begin
   BackColor := 0;
   XPos := 0;
   YPos := 0;
-  Font := nil;
 end;
 
 procedure TGraphicsState.Assign(var source: TPersistent);
@@ -726,7 +717,6 @@ begin
   BackColor := state^.BackColor;
   XPos := state^.XPos;
   YPos := state^.YPos;
-  Font^.Assign(state^.Font^);
 end;
 
 procedure TGraphicsState.AssignTo(var dest: TPersistent);
@@ -738,7 +728,6 @@ begin
   state^.BackColor := BackColor;
   state^.XPos := XPos;
   state^.YPos := YPos;
-  state^.Font^.AssignTo(Font^);
 end;
 
 end.

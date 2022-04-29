@@ -27,7 +27,8 @@ type
   public
     TypeName: string25;
     Id: string25;
-    constructor Create(newId: string);
+    constructor Create;
+    constructor CreateId(newId: string);
     procedure Init; virtual;
     function ToString: string; virtual;
   end;
@@ -62,9 +63,15 @@ destructor TBaseObject.Done;
 begin
 end;
 
-constructor TObject.Create(newId: string);
+constructor TObject.CreateId(newId: string);
 begin
   Id := NewId;
+  Init;
+end;
+
+constructor TObject.Create;
+begin
+  Id := '';
   Init;
 end;
 

@@ -1,3 +1,4 @@
+{I$ compiler.inc}
 unit Collects;
 
 interface
@@ -17,7 +18,8 @@ type
   public
     { Constructors/Destructors and Initialization }
     constructor CreateCapacity(newId: string; initialCapacity: integer);
-    constructor Create(newId: string);
+    constructor CreateId(newId: string);
+    constructor Create;
     destructor Done; virtual;
     procedure Init; virtual;
 
@@ -97,9 +99,17 @@ begin
   Init;
 end;
 
-constructor TCollection.Create(newId: string);
+constructor TCollection.CreateId(newId: string);
 begin
   Id := newId;
+  _capacity := 0;
+  SetCapacity(DefaultListCapacity);
+  Init;
+end;
+
+constructor TCollection.Create;
+begin
+  Id := '';
   _capacity := 0;
   SetCapacity(DefaultListCapacity);
   Init;
@@ -399,7 +409,7 @@ var
   index: integer;
   item: pointer;
 begin
-  result := New(PList, Create(''));
+  result := New(PList, Create);
   Where := result;
   if (_count = 0) then exit;
   for index := 0 to _count - 1 do

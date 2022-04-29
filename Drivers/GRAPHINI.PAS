@@ -35,7 +35,7 @@ begin
     end;
     gdSVga256:
     begin
-      TSvgaDriver(driver).Create('SVGA Driver');
+      TSvgaDriver(driver).Create;
     end;
   end;
 end;

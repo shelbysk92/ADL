@@ -31,6 +31,7 @@ type
     procedure Assign(var source: TPersistent); virtual;
     procedure AssignTo(var dest: TPersistent); virtual;
     function Moved(state: TMouseState): boolean; virtual;
+    function Equals(state: TMouseState): boolean;
     destructor Done; virtual;
   end;
   PMouseDriver = ^PMouseDriver;
@@ -146,11 +147,16 @@ destructor TMouseState.Done;
 begin
 end;
 
+function TMouseState.Equals(state: TMouseState): boolean;
+begin
+  Equals := (state.X = X) and (state.Y = Y) and (state.ButtonState = ButtonState);
+end;
+
 procedure TMouseState.Assign(var source: TPersistent);
 var
   state: PMouseState;
 begin
-  state := @source;
+  state := PMouseState(@source);
   X := state^.X;
   Y := state^.Y;
   ButtonState := state^.ButtonState;
@@ -161,7 +167,7 @@ procedure TMouseState.AssignTo(var dest: TPersistent);
 var
   state: PMouseState;
 begin
-  state := @dest;
+  state := PMouseState(@dest);
   state^.X := X;
   state^.Y := Y;
   state^.ButtonState := ButtonState;
@@ -202,9 +208,9 @@ begin
   reg.AX := InitMouseCode;
   Intr(MouseInterrupt, reg);
   success := Reg.AX = $FFFF;
-  State.Create('');
+  State.Create;
   if success then InitMouseCursor;
-  _stateStack := New(PStack, Create(''));
+  _stateStack := New(PStack, Create);
 end;
 
 procedure TMouseDriver.ShowMouse;
@@ -231,7 +237,7 @@ procedure TMouseDriver.PushState;
 var
   newState: PMouseState;
 begin
-  newState := New(PMouseState, Create(''));
+  newState := New(PMouseState, Create);
   newState^.Assign(State);
   _stateStack^.Push(newState);
 end;
@@ -269,7 +275,7 @@ var
   reg: Registers;
 begin
   FillChar(reg, SizeOf(reg), 0);
-  currentState.Create('');
+  currentState.Create;
   reg.AX := GetMouseStatusCode;
   Intr(MouseInterrupt, reg);
   currentState.X := reg.CX;

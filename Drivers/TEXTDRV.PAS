@@ -63,7 +63,7 @@ type
     Modes: TTextModeList;
     Error: TError;
     State: TTextState;
-    Graphics: TGraphicsDriver;
+    BppMode: byte;
     procedure PushState; virtual;
     procedure PopState; virtual;
     procedure Write(const txt: string); virtual;
@@ -154,30 +154,32 @@ procedure TTextMode.Assign(var source: TPersistent);
 var
   mode: PTextMode;
 begin
-    mode := @source;
-    Width := mode^.Width;
-    Height := mode^.Height;
-    MaxX := mode^.MaxX;
-    MaxY := mode^.MaxY;
-    Name := mode^.Name;
-    AdditionalData := mode^.AdditionalData;
-    Description := mode^.Description;
-    HelpText := mode^.HelpText;
+  mode := @source;
+  Id := mode^.Id;
+  Width := mode^.Width;
+  Height := mode^.Height;
+  MaxX := mode^.MaxX;
+  MaxY := mode^.MaxY;
+  Name := mode^.Name;
+  AdditionalData := mode^.AdditionalData;
+  Description := mode^.Description;
+  HelpText := mode^.HelpText;
 end;
 
 procedure TTextMode.AssignTo(var dest: TPersistent);
 var
   mode: PTextMode;
 begin
-    mode := @dest;
-    mode^.Width := Width;
-    mode^.Height := Height;
-    mode^.MaxX := MaxX;
-    mode^.MaxY := MaxY;
-    mode^.Name := Name;
-    mode^.AdditionalData := AdditionalData;
-    mode^.Description := Description;
-    mode^.HelpText := HelpText;
+  mode := @dest;
+  mode^.Id := Id;
+  mode^.Width := Width;
+  mode^.Height := Height;
+  mode^.MaxX := MaxX;
+  mode^.MaxY := MaxY;
+  mode^.Name := Name;
+  mode^.AdditionalData := AdditionalData;
+  mode^.Description := Description;
+  mode^.HelpText := HelpText;
 end;
 
 function TTextModeList.GetItem(index: integer): PTextMode;
@@ -204,7 +206,7 @@ procedure TTextDriver.PushState;
 var
   newState: PTextState;
 begin
-  newState := New(PTextState, Create(''));
+  newState := New(PTextState, Create);
   newState^.Assign(State);
   _stateStack^.Push(newState);
 end;
@@ -267,10 +269,14 @@ end;
 
 procedure TTextDriver.Init;
 begin
-  Modes.Create('TextDrvModeList');
+  Modes.Create;
   Mode.CreateEmpty;
-  State.Create('TextState');
-  _stateStack := New(PStack, Create('TextStateStack'));
+  State.Create;
+  Modes.Create;
+  ClearError(Error);
+  State.Create;
+  BppMode := 4;
+  _stateStack := New(PStack, Create);
 end;
 
 destructor TTextDriver.Done;

@@ -35,15 +35,15 @@ procedure TTextDriverFactory.CreateTextDriver(driverId: TTextDrivers; var driver
 begin
   case driverId of
     tdDirect: begin
-      TDirectTextDriver(driver).Create('Direct Text Driver');
+      TDirectTextDriver(driver).CreateId('Direct Text Driver');
     end;
     tdSvgaText: begin
-      TSvgaTextDriver(driver).Create('SVGA Text Driver');
+      TSvgaTextDriver(driver).CreateId('SVGA Text Driver');
     end;
     tdAnsi: begin
     end;
     tdCrt: begin
-      TCrtTextDriver(driver).Create('Crt Text Driver');
+      TCrtTextDriver(driver).CreateId('Crt Text Driver');
     end;
   end;
 end;
