@@ -216,7 +216,8 @@ begin
   end;
   if (Error.ErrorCode <> ecNone) then exit;
   SetStandardPalette;
-  Mode.Assign(newMode^);
+  Mode.Create;
+  Mode := newMode^;
 end;
 
 procedure TSVgaDriver.SwitchBank(bank: word);
@@ -247,7 +248,7 @@ begin
   ptr := Mode.FrameBuffer;
   Inc(ptr, offset and $FFFF);
   SwitchBank(offset shr 16);
-  ptr^ := State^.ForeColor;
+  ptr^ := State.ForeColor;
 end;
 
 procedure TSVgaDriver.DrawText(x, y: integer; text: string);
@@ -270,14 +271,14 @@ begin
     for yIndex := 0 to Font^.Height - 1 do begin
       if (sy > MaxY) then exit;
       for xIndex := 0 to chWidth - 1 do begin
-        color := State^.ForeColor;
+        color := State.ForeColor;
         tx := sx + xIndex;
         if (tx > maxX) then break;
         if (not Font^.PixelSet(ch, xIndex, yIndex)) then begin
-          State^.ForeColor := State^.BackColor;
+          State.ForeColor := State.BackColor;
         end;
         SetPixel(tx, sy);
-        State^.ForeColor := color;
+        State.ForeColor := color;
       end;
       Inc(sy);
     end;

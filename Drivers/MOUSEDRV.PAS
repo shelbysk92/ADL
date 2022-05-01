@@ -21,15 +21,13 @@ type
   );
   TButtonStates = set of TButtonState;
   PMouseState = ^TMouseState;
-  TMouseState = object(TPersistent)
+  TMouseState = object(TObject)
   private
   public
     X, Y: integer;
     ButtonState: TButtonStates;
     Visible: boolean;
     procedure Init; virtual;
-    procedure Assign(var source: TPersistent); virtual;
-    procedure AssignTo(var dest: TPersistent); virtual;
     function Moved(state: TMouseState): boolean; virtual;
     function Equals(state: TMouseState): boolean;
     destructor Done; virtual;
@@ -152,28 +150,6 @@ begin
   Equals := (state.X = X) and (state.Y = Y) and (state.ButtonState = ButtonState);
 end;
 
-procedure TMouseState.Assign(var source: TPersistent);
-var
-  state: PMouseState;
-begin
-  state := PMouseState(@source);
-  X := state^.X;
-  Y := state^.Y;
-  ButtonState := state^.ButtonState;
-  Visible := state^.Visible;
-end;
-
-procedure TMouseState.AssignTo(var dest: TPersistent);
-var
-  state: PMouseState;
-begin
-  state := PMouseState(@dest);
-  state^.X := X;
-  state^.Y := Y;
-  state^.ButtonState := ButtonState;
-  state^.Visible := Visible;
-end;
-
 function TMouseState.Moved(state: TMouseState): boolean;
 begin
   Moved := (state.X <> X) or (state.Y <> Y);
@@ -238,7 +214,7 @@ var
   newState: PMouseState;
 begin
   newState := New(PMouseState, Create);
-  newState^.Assign(State);
+  newState^ := State;
   _stateStack^.Push(newState);
 end;
 
@@ -248,7 +224,8 @@ var
 begin
   newState := PMouseState(_stateStack^.Pop);
   if (newState = nil) then exit;
-  State.Assign(newState^);
+  State.Create;
+  State := newState^;
   Dispose(newState, Done);
   if (State.Visible) then ShowMouse
   else HideMouse;

@@ -42,7 +42,8 @@ implementation
 
 procedure TCrtTextDriver.SetMode(newMode: TTextMode);
 begin
-  Mode.Assign(newMode);
+  Mode.Create;
+  Mode := newMode;
   if (Pos('8x8', newMode.Id) = 0) then begin
     Mode.MaxY := Hi(WindMax);
     TextMode(Mode.AdditionalData + Font8x8);

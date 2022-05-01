@@ -50,7 +50,8 @@ var
 
 procedure TDirectTextDriver.SetMode(newMode: TTextMode);
 begin
-  Mode.Assign(newMode);
+  Mode.Create;
+  Mode := newMode;
   _startMode := LastMode;
   if (newMode.Id = 'Mono') then
     _currentScreen := MonoScreen

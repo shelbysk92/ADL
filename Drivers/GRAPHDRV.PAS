@@ -123,22 +123,20 @@ type
     destructor Done; virtual;
   end;
   PGraphicsState = ^TGraphicsState;
-  TGraphicsState = object(TPersistent)
+  TGraphicsState = object(TObject)
   private
   public
     ForeColor: byte;
     BackColor: byte;
     XPos, YPos: integer;
     procedure Init; virtual;
-    procedure Assign(var source: TPersistent); virtual;
-    procedure AssignTo(var dest: TPersistent); virtual;
   end;
   TGraphicsDriver = object(TObject)
   private
-    StateStack: TStack;
     _oldMode: byte;
   public
-    State: PGraphicsState;
+    State: TGraphicsState;
+    StateStack: TStack;
     Modes: TGraphicsModeList;
     Mode: TGraphicsMode;
     Error: TError;
@@ -188,39 +186,39 @@ begin
   Modes.Create;
   Mode.CreateEmpty;
   Font := nil;
-  State := New(PGraphicsState, Create);
+  State.Create;
   StateStack.Create;
   MoveTo(0, 0);
 end;
 
 function TGraphicsDriver.ForeColor: byte;
 begin
-  ForeColor := State^.ForeColor;
+  ForeColor := State.ForeColor;
 end;
 
 function TGraphicsDriver.BackColor: byte;
 begin
-  BackColor := State^.BackColor;
+  BackColor := State.BackColor;
 end;
 
 function TGraphicsDriver.XPos: byte;
 begin
-  XPos := State^.XPos;
+  XPos := State.XPos;
 end;
 
 function TGraphicsDriver.YPos: byte;
 begin
-  YPos := State^.YPos;
+  YPos := State.YPos;
 end;
 
 procedure TGraphicsDriver.SetForeColor(color: byte);
 begin
-  State^.ForeColor := color;
+  State.ForeColor := color;
 end;
 
 procedure TGraphicsDriver.SetBackColor(color: byte);
 begin
-  State^.BackColor := color;
+  State.BackColor := color;
 end;
 
 function TGraphicsDriver.GetPixel(x, y: integer): byte;
@@ -417,7 +415,7 @@ var
   newState: PGraphicsState;
 begin
   newState := New(PGraphicsState, Create);
-  newState^.Assign(State^);
+  newState^ := State;
   StateStack.Push(newState);
 end;
 
@@ -427,7 +425,8 @@ var
 begin
   newState := PGraphicsState(StateStack.Pop);
   if (newState = nil) then exit;
-  State^.Assign(newState^);
+  State.Create;
+  State := newState^;
   Dispose(newState, Done);
 end;
 
@@ -435,7 +434,7 @@ destructor TGraphicsDriver.Done;
 begin
   TextMode(_oldMode);
   StateStack.Done;
-  Dispose(State, Done);
+  State.Done;
 end;
 
 function TGraphicsDriver.GetColor(color: TStandardColor; intensity: byte): byte;
@@ -700,34 +699,12 @@ end;
 
 procedure TGraphicsState.Init;
 begin
-  TPersistent.Init;
+  TObject.Init;
   TypeName := 'TGraphicsState';
   ForeColor := 0;
   BackColor := 0;
   XPos := 0;
   YPos := 0;
-end;
-
-procedure TGraphicsState.Assign(var source: TPersistent);
-var
-  state: PGraphicsState;
-begin
-  state := PGraphicsState(@source);
-  ForeColor := state^.ForeColor;
-  BackColor := state^.BackColor;
-  XPos := state^.XPos;
-  YPos := state^.YPos;
-end;
-
-procedure TGraphicsState.AssignTo(var dest: TPersistent);
-var
-  state: PGraphicsState;
-begin
-  state := PGraphicsState(@dest);
-  state^.ForeColor := ForeColor;
-  state^.BackColor := BackColor;
-  state^.XPos := XPos;
-  state^.YPos := YPos;
 end;
 
 end.

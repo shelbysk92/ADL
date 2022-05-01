@@ -58,7 +58,8 @@ begin
     exit;
   end;
   Graphics.SetMode(graphMode);
-  Mode.Assign(newMode);
+  Mode.Create;
+  Mode := newMode;
   MouseDriver.SetMouseResolution(graphMode^.Width, graphMode^.Height);
 end;
 

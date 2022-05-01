@@ -21,7 +21,7 @@ type
     lsDouble
   );
   PTextState = ^TTextState;
-  TTextState = object(TPersistent)
+  TTextState = object(TObject)
   public
     ForeColor, BackColor: byte;
     Blink: boolean;
@@ -29,11 +29,9 @@ type
     Attributes: byte;
     IsCursorOn: boolean;
     procedure Init; virtual;
-    procedure Assign(var source: TPersistent); virtual;
-    procedure AssignTo(var dest: TPersistent); virtual;
   end;
   PTextMode = ^TTextMode;
-  TTextMode = Object(TPersistent)
+  TTextMode = Object(TObject)
   private
   public
     Width, Height, MaxX, MaxY: integer;
@@ -42,8 +40,6 @@ type
     Description: string;
     HelpText: string;
     procedure Init; virtual;
-    procedure Assign(var source: TPersistent); virtual;
-    procedure AssignTo(var dest: TPersistent); virtual;
     constructor CreateEmpty;
   end;
   PTextModeList = ^TTextModeList;
@@ -57,8 +53,8 @@ type
   end;
   PTextDriver = ^TTextDriver;
   TTextDriver = Object(TObject)
-    _stateStack: PStack;
   public
+    StateStack: TStack;
     Mode: TTextMode;
     Modes: TTextModeList;
     Error: TError;
@@ -102,34 +98,6 @@ begin
   IsCursorOn := true;
 end;
 
-procedure TTextState.Assign(var source: TPersistent);
-var
-  state: PTextState;
-begin
-  state := @source;
-  ForeColor := state^.ForeColor;
-  BackColor := state^.BackColor;
-  X := state^.X;
-  Y := state^.Y;
-  Blink := state^.Blink;
-  Attributes := state^.Attributes;
-  IsCursorOn := state^.IsCursorOn;
-end;
-
-procedure TTextState.AssignTo(var dest: TPersistent);
-var
-  state: PTextState;
-begin
-  state := @dest;
-  state^.ForeColor := ForeColor;
-  state^.BackColor := BackColor;
-  state^.X := X;
-  state^.Y := Y;
-  state^.Blink := Blink;
-  state^.Attributes := Attributes;
-  state^.IsCursorOn := IsCursorOn;
-end;
-
 procedure TTextMode.Init;
 begin
   TObject.Init;
@@ -148,38 +116,6 @@ constructor TTextMode.CreateEmpty;
 begin
   Id := '';
   Init;
-end;
-
-procedure TTextMode.Assign(var source: TPersistent);
-var
-  mode: PTextMode;
-begin
-  mode := @source;
-  Id := mode^.Id;
-  Width := mode^.Width;
-  Height := mode^.Height;
-  MaxX := mode^.MaxX;
-  MaxY := mode^.MaxY;
-  Name := mode^.Name;
-  AdditionalData := mode^.AdditionalData;
-  Description := mode^.Description;
-  HelpText := mode^.HelpText;
-end;
-
-procedure TTextMode.AssignTo(var dest: TPersistent);
-var
-  mode: PTextMode;
-begin
-  mode := @dest;
-  mode^.Id := Id;
-  mode^.Width := Width;
-  mode^.Height := Height;
-  mode^.MaxX := MaxX;
-  mode^.MaxY := MaxY;
-  mode^.Name := Name;
-  mode^.AdditionalData := AdditionalData;
-  mode^.Description := Description;
-  mode^.HelpText := HelpText;
 end;
 
 function TTextModeList.GetItem(index: integer): PTextMode;
@@ -207,17 +143,18 @@ var
   newState: PTextState;
 begin
   newState := New(PTextState, Create);
-  newState^.Assign(State);
-  _stateStack^.Push(newState);
+  newState^ := State;
+  StateStack.Push(newState);
 end;
 
 procedure TTextDriver.PopState;
 var
   newState: PTextState;
 begin
-  newState := PTextState(_stateStack^.Pop);
+  newState := PTextState(StateStack.Pop);
   if (newState = nil) then exit;
-  State.Assign(newState^);
+  State.Create;
+  State := newState^;
   Dispose(newState, Done);
   if (State.IsCursorOn) then CursorOn
   else CursorOff;
@@ -272,16 +209,16 @@ begin
   Modes.Create;
   Mode.CreateEmpty;
   State.Create;
-  Modes.Create;
   ClearError(Error);
   State.Create;
   BppMode := 4;
-  _stateStack := New(PStack, Create);
+  StateStack.Create;
 end;
 
 destructor TTextDriver.Done;
 begin
-  Dispose(_stateStack, Done);
+  StateStack.DisposeObjects := true;
+  StateStack.Done;
   Modes.Done;
 end;
 
