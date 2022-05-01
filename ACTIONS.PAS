@@ -1,4 +1,4 @@
-{$I Compiler.inc}
+{$I COMPILER.TXT}
 unit Actions;
 
 interface
