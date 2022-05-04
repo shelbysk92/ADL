@@ -1,5 +1,5 @@
 {$I COMPILER.INC}
-unit GrMouse;
+unit GphMouse;
 
 interface
 
