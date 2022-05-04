@@ -1,4 +1,4 @@
-{$I COMPILER.TXT}
+{$I COMPILER.INC}
 unit KeyDrv;
 
 interface
@@ -224,6 +224,7 @@ end;
 destructor TKeyboardDriver.Done;
 begin
   SetIntVec($09, _savedInterruptVector);
+  TBaseObject.Done;
 end;
 
 function TKeyboardDriver.BufferLength: byte;

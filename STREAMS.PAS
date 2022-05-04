@@ -1,4 +1,4 @@
-{$I COMPILER.TXT}
+{$I COMPILER.INC}
 unit Streams;
 
 interface

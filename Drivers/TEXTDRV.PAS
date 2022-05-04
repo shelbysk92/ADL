@@ -207,7 +207,6 @@ end;
 procedure TTextDriver.Init;
 begin
   Modes.Create;
-  Mode.CreateEmpty;
   State.Create;
   ClearError(Error);
   State.Create;
@@ -217,9 +216,9 @@ end;
 
 destructor TTextDriver.Done;
 begin
-  StateStack.DisposeObjects := true;
-  StateStack.Done;
   Modes.Done;
+  StateStack.Done;
+  TObject.Done;
 end;
 
 procedure TTextDriver.HLine(x1, y1, width: byte; lineStyle: TLineStyle);

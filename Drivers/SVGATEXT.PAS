@@ -1,4 +1,4 @@
-{$I COMPILER.TXT}
+{$I COMPILER.INC}
 unit SvgaText;
 
 interface
@@ -57,12 +57,11 @@ begin
     CreateError(Graphics.Error, ecGraphicsModeNotFound, esError);
     exit;
   end;
-  Graphics.SetMode(graphMode);
+  Graphics.SetMode(graphMode^);
   Mode.Create;
   Mode := newMode;
   MouseDriver.SetMouseResolution(graphMode^.Width, graphMode^.Height);
 end;
-
 
 procedure TSvgaTextDriver.SetXY(newX, newY: byte);
 begin
@@ -118,7 +117,7 @@ begin
   factory.CreateGraphicsDriver(gdSVga256, Graphics);
   for modeIndex := 0 to Graphics.Modes.Count - 1 do begin
     graphicsMode := Graphics.Modes.GetItem(modeIndex);
-    textMode := New(PTextMode, CreateEmpty);
+    textMode := New(PTextMode, Create);
     with textMode^ do begin
       Width := graphicsMode^.Width div 8;
       Height := graphicsMode^.Height div 16;

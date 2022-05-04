@@ -1,4 +1,4 @@
-{$I COMPILER.TXT}
+{$I COMPILER.INC}
 unit SVgaDrv;
 
 interface
@@ -20,7 +20,7 @@ type
   public
     function GetPixel(x, y: integer): byte; virtual;
     procedure GetImage(var buffer: PByte; rect: TRect); virtual;
-    procedure SetMode(newMode: PGraphicsMode); virtual;
+    procedure SetMode(newMode: TGraphicsMode); virtual;
     procedure SetPixel(x, y: integer); virtual;
     procedure DrawText(x, y: integer; text: string); virtual;
     procedure DrawTextW(x, y: integer; text: TWideString); virtual;
@@ -128,12 +128,14 @@ begin
   segm := Seg(info);
   offs := Ofs(info);
   asm
+    push es
     mov  ax, 4F00h
     mov  es, [segm]
     mov  di, [offs]
     int  10h
     mov  [supported], al
     mov  [status], ah
+    pop  es
   end;
   if (supported <> $4F) or (status <> 0) then begin
     CreateError(error, ecGraphicsNotSupported, esError);
@@ -203,12 +205,12 @@ begin
   GetPixel := ptr^;
 end;
 
-procedure TSVgaDriver.SetMode(newMode: PGraphicsMode);
+procedure TSVgaDriver.SetMode(newMode: TGraphicsMode);
 var
   selectedMode: word;
   oldMode: word;
 begin
-  selectedMode := newMode^.AdditionalData;
+  selectedMode := newMode.AdditionalData;
   asm
     mov   ax, 4F02h
     mov   bx, [selectedMode]
@@ -217,7 +219,7 @@ begin
   if (Error.ErrorCode <> ecNone) then exit;
   SetStandardPalette;
   Mode.Create;
-  Mode := newMode^;
+  Mode := newMode;
 end;
 
 procedure TSVgaDriver.SwitchBank(bank: word);

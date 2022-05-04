@@ -1,4 +1,4 @@
-{$I COMPILER.TXT}
+{$I COMPILER.INC}
 unit GraphDrv;
 
 interface
@@ -150,7 +150,7 @@ type
     procedure GetImage(var buffer: PByte; rect: TRect); virtual;
     procedure SetForeColor(color: byte); virtual;
     procedure SetBackColor(color: byte); virtual;
-    procedure SetMode(newMode: PGraphicsMode); virtual;
+    procedure SetMode(newMode: TGraphicsMode); virtual;
     procedure SetPixel(x, y: integer); virtual;
     procedure MoveTo(x, y: integer); virtual;
     procedure LineTo(x, y: integer); virtual;
@@ -225,7 +225,7 @@ function TGraphicsDriver.GetPixel(x, y: integer): byte;
 begin
 end;
 
-procedure TGraphicsDriver.SetMode(newMode: PGraphicsMode);
+procedure TGraphicsDriver.SetMode(newMode: TGraphicsMode);
 begin
 end;
 
@@ -435,6 +435,7 @@ begin
   TextMode(_oldMode);
   StateStack.Done;
   State.Done;
+  TObject.Done;
 end;
 
 function TGraphicsDriver.GetColor(color: TStandardColor; intensity: byte): byte;
@@ -556,6 +557,7 @@ destructor TFont.Done;
 begin
   if (_fontData <> nil) then
     FreeMem(_fontData, _fontDataSize);
+  TPersistent.Done;
 end;
 
 procedure TFont.Assign(var source: TPersistent);
@@ -665,12 +667,11 @@ end;
 procedure TSystemFont.Init;
 var
   regs: Registers;
-  fontPtr: PSystemFontData;
+  fontPtr: pointer;
 begin
   TMonospaceFont.Init;
   TypeName := 'TSystemFont';
   Id := 'System';
-  _maxWidth := 8;
   FillChar(regs, SizeOf(regs), 0);
   regs.ax := $1130;
   regs.bh := $06;

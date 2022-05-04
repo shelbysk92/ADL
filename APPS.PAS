@@ -1,4 +1,4 @@
-{$I COMPILER.TXT}
+{$I COMPILER.INC}
 unit Apps;
 
 interface
@@ -41,56 +41,10 @@ begin
 end;
 
 procedure TApplication.Init;
-{$IFDEF debug}
-var
-    filename: string;
-    debugFile: File;
-    xmsHandle: word;
-    xmsControl: pointer;
-{$ENDIF}
 begin
   TObject.Init;
   TypeName := 'TApplication';
   ClrScr;
-  {$IFDEF debug}
-    { Deallocate the last used XMS handle if the program abnormally terminated}
-    filename := 'XmsDebug.bin';
-    if FileExists(FileName) then
-    begin
-      Assign(debugFile, filename);
-      Reset(debugFile, 1);
-      BlockRead(debugFile, xmsHandle, SizeOf(xmsHandle));
-      System.Close(debugFile);
-      asm
-        push es
-        mov  ax, 4310h
-        int  2Fh
-        mov  word ptr [xmsControl], bx
-        mov  word ptr [xmsControl + 2], es
-        pop  es
-      end;
-      asm
-        mov  ah, 0Ah
-        mov  dx, [xmsHandle]
-        call [XmsControl]
-      end;
-    end;
-  {$ENDIF}
-  Memory.Create(InterfaceMemory);
-  WriteLn('Memory manager initialized.');
-  if (Memory.XmsEnabled) then
-  begin
-    WriteLn
-    (
-      'XMS memory enabled.',
-      #10#13,
-      longint(Memory.LowerMemAvail),
-      ' bytes lower memory available.',
-      #10#13,
-      longint(Memory.XmsMemAvail),
-      ' bytes XMS memory available.'
-    );
-  end;
   MouseDriver.Create;
   MouseDriver.HideMouse;
   WriteLn('Mouse initialized.');
@@ -121,11 +75,10 @@ end;
 
 destructor TApplication.Done;
 begin
-  TObject.Done;
-  Memory.Done;
   MouseDriver.Done;
 {  Keyboard.Done;}
   while KeyPressed do ReadKey;
+  TObject.Done;
 end;
 
 end.

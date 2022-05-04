@@ -1,4 +1,4 @@
-{$I COMPILER.TXT}
+{$I COMPILER.INC}
 unit MouseDrv;
 
 interface
@@ -172,6 +172,7 @@ destructor TMouseDriver.Done;
 begin
   Dispose(_stateStack);
   State.Done;
+  TBaseObject.Done;
 end;
 
 procedure TMouseDriver.Init;

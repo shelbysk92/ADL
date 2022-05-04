@@ -191,6 +191,7 @@ destructor TWideString.Done;
 begin
   if (Data <> nil) then
     FreeMem(Data, Capacity);
+
 end;
 
 procedure TStringList.Init;
