@@ -22,7 +22,7 @@ type
   TTextDriverFactory = object(TBaseObject)
   public
     procedure Init; virtual;
-    procedure CreateTextDriver(driverId: TTextDrivers; var driver);
+    procedure CreateTextDriver(driverId: TTextDrivers; var driver: PTextDriver);
   end;
 
 implementation
@@ -31,19 +31,19 @@ procedure TTextDriverFactory.Init;
 begin
 end;
 
-procedure TTextDriverFactory.CreateTextDriver(driverId: TTextDrivers; var driver);
+procedure TTextDriverFactory.CreateTextDriver(driverId: TTextDrivers; var driver: PTextDriver);
 begin
   case driverId of
     tdDirect: begin
-      TDirectTextDriver(driver).CreateId('Direct Text Driver');
+      driver := New(PDirectTextDriver, Create);
     end;
     tdSvgaText: begin
-      TSvgaTextDriver(driver).CreateId('SVGA Text Driver');
+      driver := New(PSVgaTextDriver, Create);
     end;
     tdAnsi: begin
     end;
     tdCrt: begin
-      TCrtTextDriver(driver).CreateId('Crt Text Driver');
+      driver := New(PCrtTextDriver, Create);
     end;
   end;
 end;

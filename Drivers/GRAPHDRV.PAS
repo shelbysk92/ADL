@@ -135,12 +135,13 @@ type
   private
     _oldMode: byte;
   public
-    State: TGraphicsState;
-    StateStack: TStack;
-    Modes: TGraphicsModeList;
-    Mode: TGraphicsMode;
+    State: PGraphicsState;
+    StateStack: PStack;
+    Modes: PGraphicsModeList;
+    Mode: PGraphicsMode;
     Error: TError;
     Font: PFont;
+    SystemFont: PFont;
     function GetPixel(x, y: integer): byte; virtual;
     function GetColor(color: TStandardColor; intensity: byte): byte; virtual;
     function ForeColor: byte; virtual;
@@ -171,7 +172,7 @@ type
   end;
 
 var
-  Graphics: TGraphicsDriver;
+  Graphics: PGraphicsDriver;
 
 implementation
 
@@ -183,42 +184,43 @@ begin
   TypeName := 'TGraphicsDriver';
   _oldMode := LastMode;
   ClearError(Error);
-  Modes.Create;
-  Mode.CreateEmpty;
-  Font := nil;
-  State.Create;
-  StateStack.Create;
+  Modes := New(PGraphicsModeList, Create);
+  SystemFont := New(PSystemFont, Create('SystemFont'));
+  Font := SystemFont;
+  Mode := nil;
+  State := New(PGraphicsState, Create);
+  StateStack := New(PStack, Create);
   MoveTo(0, 0);
 end;
 
 function TGraphicsDriver.ForeColor: byte;
 begin
-  ForeColor := State.ForeColor;
+  ForeColor := State^.ForeColor;
 end;
 
 function TGraphicsDriver.BackColor: byte;
 begin
-  BackColor := State.BackColor;
+  BackColor := State^.BackColor;
 end;
 
 function TGraphicsDriver.XPos: byte;
 begin
-  XPos := State.XPos;
+  XPos := State^.XPos;
 end;
 
 function TGraphicsDriver.YPos: byte;
 begin
-  YPos := State.YPos;
+  YPos := State^.YPos;
 end;
 
 procedure TGraphicsDriver.SetForeColor(color: byte);
 begin
-  State.ForeColor := color;
+  State^.ForeColor := color;
 end;
 
 procedure TGraphicsDriver.SetBackColor(color: byte);
 begin
-  State.BackColor := color;
+  State^.BackColor := color;
 end;
 
 function TGraphicsDriver.GetPixel(x, y: integer): byte;
@@ -415,26 +417,26 @@ var
   newState: PGraphicsState;
 begin
   newState := New(PGraphicsState, Create);
-  newState^ := State;
-  StateStack.Push(newState);
+  newState^ := State^;
+  StateStack^.Push(newState);
 end;
 
 procedure TGraphicsDriver.PopState;
 var
-  newState: PGraphicsState;
+  oldState: PGraphicsState;
 begin
-  newState := PGraphicsState(StateStack.Pop);
-  if (newState = nil) then exit;
-  State.Create;
-  State := newState^;
-  Dispose(newState, Done);
+  oldState := PGraphicsState(StateStack^.Pop);
+  if (oldState = nil) then exit;
+  State^ := oldState^;
+  Dispose(oldState, Done);
 end;
 
 destructor TGraphicsDriver.Done;
 begin
   TextMode(_oldMode);
-  StateStack.Done;
-  State.Done;
+  Dispose(StateStack, Done);
+  Dispose(State, Done);
+  Dispose(SystemFont, Done);
   TObject.Done;
 end;
 

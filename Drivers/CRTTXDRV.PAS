@@ -26,7 +26,7 @@ type
     procedure SetBackColor(color: byte); virtual;
     procedure SetBlink(doBlink: boolean); virtual;
     procedure Init; virtual;
-    procedure SetMode(newMode: TTextMode); virtual;
+    procedure SetMode(newMode: PTextMode); virtual;
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
     procedure VLine(x1, y1, height: byte; lineStyle: TLineStyle); virtual;
     procedure Box(rect: TRect; style: TLineStyle); virtual;
@@ -40,16 +40,15 @@ type
 
 implementation
 
-procedure TCrtTextDriver.SetMode(newMode: TTextMode);
+procedure TCrtTextDriver.SetMode(newMode: PTextMode);
 begin
-  Mode.Create;
   Mode := newMode;
-  if (Pos('8x8', newMode.Id) = 0) then begin
-    Mode.MaxY := Hi(WindMax);
-    TextMode(Mode.AdditionalData + Font8x8);
+  if (Pos('8x8', newMode^.Id) = 0) then begin
+    Mode^.MaxY := Hi(WindMax);
+    TextMode(Mode^.AdditionalData + Font8x8);
   end;
   _startMode := LastMode;
-  TextMode(Mode.AdditionalData);
+  TextMode(Mode^.AdditionalData);
   ClrScr;
   CursorOn;
 end;
@@ -65,10 +64,10 @@ var
   ch: TTextChar;
   index: integer;
 begin
-  if (WhereY = Mode.MaxY) and (WhereX + length(txt) = 80) then
+  if (WhereY = Mode^.MaxY) and (WhereX + length(txt) = 80) then
     Inc(WindMax);
   System.Write(txt);
-  if (WhereY = Mode.MaxY) and (WhereX + length(txt) = 80) then
+  if (WhereY = Mode^.MaxY) and (WhereX + length(txt) = 80) then
     Dec(WindMax);
   SetXY(WhereX - 1, WhereY - 1);
 end;
@@ -88,8 +87,8 @@ end;
 procedure TCrtTextDriver.SetBlink(doBlink: boolean);
 begin
   TTextDriver.SetBlink(doBlink);
-  if (doBlink and (TextAttr < 15)) then TextColor(State.ForeColor + blink);
-  if ((not doBlink) and (TextAttr > 15)) then TextColor(State.ForeColor);
+  if (doBlink and (TextAttr < 15)) then TextColor(State^.ForeColor + blink);
+  if ((not doBlink) and (TextAttr > 15)) then TextColor(State^.ForeColor);
 end;
 
 procedure TCrtTextDriver.SetForeColor(color: byte);
@@ -158,7 +157,7 @@ begin
     AdditionalData := BW40;
     Description := '40x25 B/W on color adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -171,7 +170,7 @@ begin
     AdditionalData := BW80;
     Description := '80x25 B/W on color adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -184,7 +183,7 @@ begin
     AdditionalData := Mono;
     Description := '80x25 B/W on monochrome adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -197,7 +196,7 @@ begin
     AdditionalData := CO40;
     Description := '40x25 color on color adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -210,7 +209,7 @@ begin
     AdditionalData := CO40;
     Description := '40x25 color on color adapter with 8x8 font';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   with newMode^ do begin
     Id := 'CO80';
@@ -222,7 +221,7 @@ begin
     AdditionalData := CO80;
     Description := '80x25 color on color adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -235,7 +234,7 @@ begin
     AdditionalData := CO80;
     Description := '40x25 color on color adapter with 8x8 font';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
 end;
 
@@ -254,7 +253,7 @@ begin
     Write(ch);
   end;
   PopState;
-  SetXY(State.X, State.Y);
+  SetXY(State^.X, State^.Y);
 end;
 
 procedure TCrtTextDriver.VLine(x1, y1, height: byte; lineStyle: TLineStyle);
@@ -271,7 +270,7 @@ begin
     Write(ch);
   end;
   PopState;
-  SetXY(State.X, State.Y);
+  SetXY(State^.X, State^.Y);
 end;
 
 procedure TCrtTextDriver.Box(rect: TRect; style: TLineStyle);
@@ -311,7 +310,7 @@ procedure TCrtTextDriver.ClrScr;
 var
   rect: TRect;
 begin
-  rect.Create(0, 0, Mode.Width, Mode.Height);
+  rect.Create(0, 0, Mode^.Width, Mode^.Height);
   FillRect(Rect);
 end;
 

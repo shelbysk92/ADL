@@ -45,8 +45,8 @@ begin
   TObject.Init;
   TypeName := 'TApplication';
   ClrScr;
-  MouseDriver.Create;
-  MouseDriver.HideMouse;
+  MouseDriver := New(PMouseDriver, Create);
+  MouseDriver^.HideMouse;
   WriteLn('Mouse initialized.');
 {  Keyboard.Create;}
   Closed := false;
@@ -75,7 +75,7 @@ end;
 
 destructor TApplication.Done;
 begin
-  MouseDriver.Done;
+  Dispose(MouseDriver, Done);
 {  Keyboard.Done;}
   while KeyPressed do ReadKey;
   TObject.Done;

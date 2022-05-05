@@ -33,7 +33,7 @@ type
     procedure CursorOn; virtual;
     procedure CursorOff; virtual;
     procedure Init; virtual;
-    procedure SetMode(newMode: TTextMode); virtual;
+    procedure SetMode(newMode: PTextMode); virtual;
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
     procedure VLine(x1, y1, height: byte; lineStyle: TLineStyle); virtual;
     procedure Box(rect: TRect; style: TLineStyle); virtual;
@@ -46,21 +46,20 @@ type
 
 implementation
 
-procedure TSvgaTextDriver.SetMode(newMode: TTextMode);
+procedure TSvgaTextDriver.SetMode(newMode: PTextMode);
 var
   graphMode: PGraphicsMode;
   modeIndex: integer;
 begin
-  graphMode := Graphics.Modes.GetItem(newMode.AdditionalData);
+  graphMode := Graphics^.Modes^.GetItem(newMode^.AdditionalData);
   if (graphMode = nil) then
   begin
-    CreateError(Graphics.Error, ecGraphicsModeNotFound, esError);
+    CreateError(Graphics^.Error, ecGraphicsModeNotFound, esError);
     exit;
   end;
-  Graphics.SetMode(graphMode);
-  Mode.Create;
+  Graphics^.SetMode(graphMode);
   Mode := newMode;
-  MouseDriver.SetMouseResolution(graphMode^.Width, graphMode^.Height);
+  MouseDriver^.SetMouseResolution(graphMode^.Width, graphMode^.Height);
 end;
 
 procedure TSvgaTextDriver.SetXY(newX, newY: byte);
@@ -75,15 +74,15 @@ var
 begin
   for index := 1 to Length(txt) do begin
     ch := txt[index];
-    Graphics.DrawText(State.X * 8, State.Y * 16, ch);
-    State.X := State.X + 1;
-    if (state.X > Mode.MaxX) then begin
-      state.X := 0;
-      State.Y := State.Y + 1;
-      if (state.Y > Mode.MaxY) then break;
+    Graphics^.DrawText(State^.X * 8, State^.Y * 16, ch);
+    State^.X := State^.X + 1;
+    if (State^.X > Mode^.MaxX) then begin
+      State^.X := 0;
+      State^.Y := State^.Y + 1;
+      if (State^.Y > Mode^.MaxY) then break;
     end;
   end;
-  SetXY(state.X, state.Y);
+  SetXY(state^.X, state^.Y);
 end;
 
 procedure TSvgaTextDriver.WriteWide(txt: TWideString);
@@ -115,8 +114,8 @@ begin
   TTextDriver.Init;
   TypeName := 'TSvgaTextDriver';
   factory.CreateGraphicsDriver(gdSVga256, Graphics);
-  for modeIndex := 0 to Graphics.Modes.Count - 1 do begin
-    graphicsMode := Graphics.Modes.GetItem(modeIndex);
+  for modeIndex := 0 to Graphics^.Modes^.Count - 1 do begin
+    graphicsMode := Graphics^.Modes^.GetItem(modeIndex);
     textMode := New(PTextMode, Create);
     with textMode^ do begin
       Width := graphicsMode^.Width div 8;
@@ -130,7 +129,7 @@ begin
         ' (SVGA ' + IntToStr(graphicsMode^.Width) + 'x' + IntToStr(graphicsMode^.Height) + ')';
       HelpText := 'Requires VESA compatible Super VGA card.';
     end;
-    Modes.Add(textMode);
+    Modes^.Add(textMode);
   end;
 end;
 
@@ -140,21 +139,21 @@ var
 begin
   case color of
     Black: result := 0;
-    Blue: result := Graphics.GetColor(scBlue, Intensity50);
-    Green: result := Graphics.GetColor(scGreen, Intensity50);
-    Cyan: result := Graphics.GetColor(scCyan, Intensity50);
-    Red: result := Graphics.GetColor(scRed, Intensity50);
-    Magenta: result := Graphics.GetColor(scMagenta, Intensity50);
-    Brown: result := Graphics.GetColor(scYellow, Intensity50);
-    LightGray: result := Graphics.GetColor(scWhite, Intensity75);
-    DarkGray: result := Graphics.GetColor(scWhite, Intensity50);
-    LightBlue: result := Graphics.GetColor(scBlue, MaxIntensity);
-    LightGreen: result := Graphics.GetColor(scGreen, MaxIntensity);
-    LightCyan: result := Graphics.GetColor(scCyan, MaxIntensity);
-    LightRed: result := Graphics.GetColor(scRed, MaxIntensity);
-    LightMagenta: result := Graphics.GetColor(scMagenta, MaxIntensity);
-    Yellow: result := Graphics.GetColor(scYellow, MaxIntensity);
-    White: result := Graphics.GetColor(scWhite, MaxIntensity);
+    Blue: result := Graphics^.GetColor(scBlue, Intensity50);
+    Green: result := Graphics^.GetColor(scGreen, Intensity50);
+    Cyan: result := Graphics^.GetColor(scCyan, Intensity50);
+    Red: result := Graphics^.GetColor(scRed, Intensity50);
+    Magenta: result := Graphics^.GetColor(scMagenta, Intensity50);
+    Brown: result := Graphics^.GetColor(scYellow, Intensity50);
+    LightGray: result := Graphics^.GetColor(scWhite, Intensity75);
+    DarkGray: result := Graphics^.GetColor(scWhite, Intensity50);
+    LightBlue: result := Graphics^.GetColor(scBlue, MaxIntensity);
+    LightGreen: result := Graphics^.GetColor(scGreen, MaxIntensity);
+    LightCyan: result := Graphics^.GetColor(scCyan, MaxIntensity);
+    LightRed: result := Graphics^.GetColor(scRed, MaxIntensity);
+    LightMagenta: result := Graphics^.GetColor(scMagenta, MaxIntensity);
+    Yellow: result := Graphics^.GetColor(scYellow, MaxIntensity);
+    White: result := Graphics^.GetColor(scWhite, MaxIntensity);
   end;
   GetStandardColor := result;
 end;
@@ -167,7 +166,7 @@ begin
   else begin
     TTextDriver.SetForeColor(color);
   end;
-  Graphics.SetForeColor(ForeColor);
+  Graphics^.SetForeColor(ForeColor);
 end;
 
 procedure TSvgaTextDriver.SetBackColor(color: byte);
@@ -178,13 +177,13 @@ begin
   else begin
     TTextDriver.SetBackColor(color);
   end;
-  Graphics.SetBackColor(BackColor);
+  Graphics^.SetBackColor(BackColor);
 end;
 
 destructor TSvgaTextDriver.Done;
 begin
   TTextDriver.Done;
-  Graphics.Done;
+  Graphics^.Done;
 end;
 
 procedure TSvgaTextDriver.HLine(x1, y1, width: byte; lineStyle: TLineStyle);
@@ -194,8 +193,8 @@ var
   cursorState: boolean;
 begin
   PushState;
-  MouseDriver.PushState;
-  MouseDriver.HideMouse;
+  MouseDriver^.PushState;
+  MouseDriver^.HideMouse;
   CursorOff;
   ch := #196;
   if (lineStyle = lsDouble) then ch := #205;
@@ -204,7 +203,7 @@ begin
     Write(ch);
   end;
   PopState;
-  MouseDriver.PopState;
+  MouseDriver^.PopState;
 end;
 
 procedure TSvgaTextDriver.VLine(x1, y1, height: byte; lineStyle: TLineStyle);
@@ -213,7 +212,7 @@ var
   index: integer;
   cursorState: boolean;
 begin
-  MouseDriver.PushState;
+  MouseDriver^.PushState;
   PushState;
   CursorOff;
   ch := #179;
@@ -223,7 +222,7 @@ begin
     Write(ch);
   end;
   PopState;
-  MouseDriver.PopState;
+  MouseDriver^.PopState;
 end;
 
 procedure TSvgaTextDriver.Box(rect: TRect; style: TLineStyle);
@@ -231,7 +230,7 @@ var
   ch: char;
   offset: PByte;
 begin
-  MouseDriver.PushState;
+  MouseDriver^.PushState;
   PushState;
   ch := #218;
   if (style = lsDouble) then ch := #201;
@@ -257,7 +256,7 @@ begin
   HLine(rect.X + 1, rect.Y + rect.Height - 1, rect.Width - 2, style);
   VLine(rect.X, rect.Y + 1, rect.Height - 2, style);
   VLine(rect.X + rect.Width - 1, rect.Y + 1, rect.Height - 2, style);
-  MouseDriver.PopState;
+  MouseDriver^.PopState;
   PopState;
 end;
 
@@ -265,8 +264,8 @@ procedure TSvgaTextDriver.ClrScr;
 var
   rect: TRect;
 begin
-  rect.Create(0, 0, Graphics.Mode.Width, Graphics.Mode.Height);
-  Graphics.FillRect(rect);
+  rect.Create(0, 0, Graphics^.Mode^.Width, Graphics^.Mode^.Height);
+  Graphics^.FillRect(rect);
 end;
 
 procedure TSvgaTextDriver.FillRect(rect: TRect);
@@ -274,18 +273,18 @@ var
   graphRect: TRect;
   width, height: integer;
 begin
-  Graphics.PushState;
-  Graphics.SetForeColor(BackColor);
-  width := Graphics.Font^.TextWidth('W');
-  height := Graphics.Font^.Height;
+  Graphics^.PushState;
+  Graphics^.SetForeColor(BackColor);
+  width := Graphics^.Font^.TextWidth('W');
+  height := Graphics^.Font^.Height;
   graphRect.Create(
     rect.X * width,
     rect.Y * height,
     rect.Width * width,
     rect.Height * height
   );
-  Graphics.FillRect(graphRect);
-  Graphics.PopState;
+  Graphics^.FillRect(graphRect);
+  Graphics^.PopState;
 end;
 
 end.

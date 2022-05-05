@@ -24,7 +24,7 @@ type
     procedure SetBackColor(color: byte); virtual;
     procedure SetBlink(doBlink: boolean); virtual;
     procedure Init; virtual;
-    procedure SetMode(newMode: TTextMode); virtual;
+    procedure SetMode(newMode: PTextMode); virtual;
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
     procedure VLine(x1, y1, height: byte; lineStyle: TLineStyle); virtual;
     procedure Box(rect: TRect; style: TLineStyle); virtual;
@@ -48,18 +48,17 @@ type
 var
   _currentScreen: PByte;
 
-procedure TDirectTextDriver.SetMode(newMode: TTextMode);
+procedure TDirectTextDriver.SetMode(newMode: PTextMode);
 begin
-  Mode.Create;
   Mode := newMode;
   _startMode := LastMode;
-  if (newMode.Id = 'Mono') then
+  if (newMode^.Id = 'Mono') then
     _currentScreen := MonoScreen
   else
     _currentScreen := ColorScreen;
-  TextMode(Mode.AdditionalData);
-  Mode.Height := Hi(WindMax) + 1;
-  Mode.MaxY := Hi(WindMax);
+  TextMode(Mode^.AdditionalData);
+  Mode^.Height := Hi(WindMax) + 1;
+  Mode^.MaxY := Hi(WindMax);
   ClrScr;
   CursorOn;
 end;
@@ -77,20 +76,20 @@ var
   offset: PByte;
 begin
   offset := _currentScreen;
-  Inc(offset, 2 * (State.Y * Mode.Width + State.X));
-  ch.Attributes := State.Attributes;
+  Inc(offset, 2 * (State^.Y * Mode^.Width + State^.X));
+  ch.Attributes := State^.Attributes;
   for index := 1 to Length(txt) do begin
     ch.Character := txt[index];
     Move(ch, offset^, 2);
     Inc(offset, 2);
-    State.X := State.X + 1;
-    if (state.X > Mode.MaxX) then begin
-      state.X := 0;
-      State.Y := State.Y + 1;
-      if (state.Y > Mode.MaxY) then break;
+    State^.X := State^.X + 1;
+    if (state^.X > Mode^.MaxX) then begin
+      state^.X := 0;
+      State^.Y := State^.Y + 1;
+      if (state^.Y > Mode^.MaxY) then break;
     end;
   end;
-  SetXY(state.X, state.Y);
+  SetXY(state^.X, state^.Y);
 end;
 
 procedure TDirectTextDriver.WriteWide(txt: TWideString);
@@ -100,38 +99,38 @@ var
   offset: PByte;
 begin
   offset := _currentScreen;
-  Inc(offset, 2 * (State.Y * Mode.Width + State.X));
-  ch.Attributes := State.Attributes;
+  Inc(offset, 2 * (State^.Y * Mode^.Width + State^.X));
+  ch.Attributes := State^.Attributes;
   for index := 1 to txt.Len do begin
     ch.Character := txt.GetChar(index);
     Move(ch, offset^, 2);
     Inc(offset, 2);
-    State.X := State.X + 1;
-    if (state.X > Mode.MaxX) then begin
-      state.X := 0;
-      State.Y := State.Y + 1;
-      if (state.Y > Mode.MaxY) then break;
+    State^.X := State^.X + 1;
+    if (state^.X > Mode^.MaxX) then begin
+      State^.X := 0;
+      State^.Y := State^.Y + 1;
+      if (State^.Y > Mode^.MaxY) then break;
     end;
   end;
-  SetXY(state.X, state.Y);
+  SetXY(state^.X, state^.Y);
 end;
 
 procedure TDirectTextDriver.SetBlink(doBlink: boolean);
 begin
   TTextDriver.SetBlink(doBlink);
-  State.Attributes := GetTextAttributes(State.ForeColor, State.BackColor, State.Blink);
+  State^.Attributes := GetTextAttributes(State^.ForeColor, State^.BackColor, State^.Blink);
 end;
 
 procedure TDirectTextDriver.SetForeColor(color: byte);
 begin
   TTextDriver.SetForeColor(color);
-  State.Attributes := GetTextAttributes(State.ForeColor, State.BackColor, State.Blink);
+  State^.Attributes := GetTextAttributes(State^.ForeColor, State^.BackColor, State^.Blink);
 end;
 
 procedure TDirectTextDriver.SetBackColor(color: byte);
 begin
   TTextDriver.SetBackColor(color);
-  State.Attributes := GetTextAttributes(State.ForeColor, State.BackColor, State.Blink);
+  State^.Attributes := GetTextAttributes(State^.ForeColor, State^.BackColor, State^.Blink);
 end;
 
 procedure TDirectTextDriver.CursorOn;
@@ -188,7 +187,7 @@ begin
     AdditionalData := BW40;
     Description := '40x25 B/W on color adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -201,7 +200,7 @@ begin
     AdditionalData := BW80;
     Description := '80x25 B/W on color adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -214,7 +213,7 @@ begin
     AdditionalData := Mono;
     Description := '80x25 B/W on monochrome adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -227,7 +226,7 @@ begin
     AdditionalData := CO40;
     Description := '40x25 color on color adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -240,7 +239,7 @@ begin
     AdditionalData := CO40 + Font8x8;
     Description := '40x25 color on color adapter with 8x8 font';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -253,7 +252,7 @@ begin
     AdditionalData := CO80;
     Description := '80x25 color on color adapter';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
   newMode := New(PTextMode, CreateEmpty);
   with newMode^ do begin
@@ -266,7 +265,7 @@ begin
     AdditionalData := CO80 + Font8x8;
     Description := '80x25 color on color adapter with 8x8 font';
     HelpText := '';
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
   end;
 end;
 
@@ -277,13 +276,13 @@ var
   offset: PByte;
   cursorState: boolean;
 begin
-  cursorState := State.IsCursorOn;
+  cursorState := State^.IsCursorOn;
   if CursorState then CursorOff;
-  ch.Attributes := State.Attributes;
+  ch.Attributes := State^.Attributes;
   ch.Character := #196;
   if (lineStyle = lsDouble) then ch.Character := #205;
   Offset := _currentScreen;
-  Inc(offset, 2 * (y1 * Mode.Width + x1));
+  Inc(offset, 2 * (y1 * Mode^.Width + x1));
   for index := 0 to width - 1 do begin
     Move(ch, offset^, 2);
     Inc(offset, 2);
@@ -298,16 +297,16 @@ var
   offset: PByte;
   cursorState: boolean;
 begin
-  cursorState := State.IsCursorOn;
+  cursorState := State^.IsCursorOn;
   if CursorState then CursorOff;
-  ch.Attributes := State.Attributes;
+  ch.Attributes := State^.Attributes;
   ch.Character := #179;
   if (lineStyle = lsDouble) then ch.Character := #186;
   offset := _currentScreen;
-  Inc(offset, 2 * (y1 * Mode.Width + x1));
+  Inc(offset, 2 * (y1 * Mode^.Width + x1));
   for index := y1 to y1 + height - 1 do begin
     Move(ch, offset^, 2);
-    Inc(offset, 2 * Mode.Width);
+    Inc(offset, 2 * Mode^.Width);
   end;
   if CursorState then CursorOn;
 end;
@@ -317,30 +316,30 @@ var
   ch: TTextChar;
   offset: PByte;
 begin
-  ch.Attributes := State.Attributes;
+  ch.Attributes := State^.Attributes;
 
   ch.Character := #218;
   if (style = lsDouble) then ch.Character := #201;
   offset := _currentScreen;
-  Inc(offset, 2 * (rect.Y * Mode.Width + rect.X));
+  Inc(offset, 2 * (rect.Y * Mode^.Width + rect.X));
   Move(ch, offset^, 2);
 
   ch.Character := #191;
   if (style = lsDouble) then ch.Character := #187;
   offset := _currentScreen;
-  Inc(offset, 2 * (rect.Y * Mode.Width + rect.X + rect.Width - 1));
+  Inc(offset, 2 * (rect.Y * Mode^.Width + rect.X + rect.Width - 1));
   Move(ch, offset^, 2);
 
   ch.Character := #192;
   if (style = lsDouble) then ch.Character := #200;
   offset := _currentScreen;
-  Inc(offset, 2 * ((rect.Y + rect.Height - 1) * Mode.Width + rect.X));
+  Inc(offset, 2 * ((rect.Y + rect.Height - 1) * Mode^.Width + rect.X));
   Move(ch, offset^, 2);
 
   ch.Character := #217;
   if (style = lsDouble) then ch.Character := #188;
   offset := _currentScreen;
-  Inc(offset, 2 * ((rect.Y + rect.Height - 1) * Mode.Width + rect.X + rect.Width - 1));
+  Inc(offset, 2 * ((rect.Y + rect.Height - 1) * Mode^.Width + rect.X + rect.Width - 1));
   Move(ch, offset^, 2);
 
   HLine(rect.X + 1, rect.Y, rect.Width - 2, style);
@@ -353,7 +352,7 @@ procedure TDirectTextDriver.ClrScr;
 var
   rect: TRect;
 begin
-  rect.Create(0, 0, Mode.Width, Mode.Height);
+  rect.Create(0, 0, Mode^.Width, Mode^.Height);
   FillRect(Rect);
 end;
 
@@ -366,17 +365,17 @@ var
 begin
   GetMem(line, rect.Width * 2);
   offset := _currentScreen;
-  ch.Attributes := State.Attributes;
+  ch.Attributes := State^.Attributes;
   ch.Character := #32;
   linePtr := line;
   for index := 0 to rect.Width - 1 do begin
     Move(ch, linePtr^, 2);
     Inc(linePtr, 2);
   end;
-  Inc(offset, 2 * (rect.Y * Mode.Width + rect.X));
+  Inc(offset, 2 * (rect.Y * Mode^.Width + rect.X));
   for index := rect.Y to rect.Bottom do begin
     Move(line^, offset^, rect.Width * 2);
-    Inc(offset, Mode.Width * 2);
+    Inc(offset, Mode^.Width * 2);
   end;
   SetXY(0, 0);
   FreeMem(line, rect.Width * 2);

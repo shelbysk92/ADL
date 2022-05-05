@@ -32,12 +32,12 @@ type
     function Equals(state: TMouseState): boolean;
     destructor Done; virtual;
   end;
-  PMouseDriver = ^PMouseDriver;
+  PMouseDriver = ^TMouseDriver;
   TMouseDriver = object(TObject)
   private
   public
-    State: TMouseState;
-    _stateStack: PStack;
+    State: PMouseState;
+    StateStack: PStack;
     procedure Init; virtual;
     procedure ShowMouse; virtual;
     procedure HideMouse; virtual;
@@ -50,7 +50,7 @@ type
   end;
 
 var
-  MouseDriver: TMouseDriver;
+  MouseDriver: PMouseDriver;
 
 implementation
 
@@ -170,8 +170,8 @@ end;
 
 destructor TMouseDriver.Done;
 begin
-  Dispose(_stateStack);
-  State.Done;
+  Dispose(StateStack, Done);
+  Dispose(State, Done);
   TBaseObject.Done;
 end;
 
@@ -185,9 +185,9 @@ begin
   reg.AX := InitMouseCode;
   Intr(MouseInterrupt, reg);
   success := Reg.AX = $FFFF;
-  State.Create;
+  State := New(PMouseState, Create);
   if success then InitMouseCursor;
-  _stateStack := New(PStack, Create);
+  StateStack := New(PStack, Create);
 end;
 
 procedure TMouseDriver.ShowMouse;
@@ -197,7 +197,7 @@ begin;
   FillChar(reg, SizeOf(reg), 0);
   reg.AX := ShowMouseCode;
   Intr(MouseInterrupt, reg);
-  State.Visible := true;
+  State^.Visible := true;
 end;
 
 procedure TMouseDriver.HideMouse;
@@ -207,7 +207,7 @@ begin;
   FillChar(reg, SizeOf(reg), 0);
   reg.AX := HideMouseCode;
   Intr(MouseInterrupt, reg);
-  State.Visible := false;
+  State^.Visible := false;
 end;
 
 procedure TMouseDriver.PushState;
@@ -215,20 +215,19 @@ var
   newState: PMouseState;
 begin
   newState := New(PMouseState, Create);
-  newState^ := State;
-  _stateStack^.Push(newState);
+  newState^ := State^;
+  StateStack^.Push(newState);
 end;
 
 procedure TMouseDriver.PopState;
 var
-  newState: PMouseState;
+  oldState: PMouseState;
 begin
-  newState := PMouseState(_stateStack^.Pop);
-  if (newState = nil) then exit;
-  State.Create;
-  State := newState^;
-  Dispose(newState, Done);
-  if (State.Visible) then ShowMouse
+  oldState := PMouseState(StateStack^.Pop);
+  if (oldState = nil) then exit;
+  State^ := oldState^;
+  Dispose(oldState, Done);
+  if (State^.Visible) then ShowMouse
   else HideMouse;
 end;
 

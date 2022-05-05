@@ -54,11 +54,11 @@ type
   PTextDriver = ^TTextDriver;
   TTextDriver = Object(TObject)
   public
-    StateStack: TStack;
-    Mode: TTextMode;
-    Modes: TTextModeList;
+    StateStack: PStack;
+    Mode: PTextMode;
+    Modes: PTextModeList;
     Error: TError;
-    State: TTextState;
+    State: PTextState;
     BppMode: byte;
     procedure PushState; virtual;
     procedure PopState; virtual;
@@ -71,7 +71,7 @@ type
     procedure CursorOn; virtual;
     procedure CursorOff; virtual;
     procedure Init; virtual;
-    procedure SetMode(newMode: TTextMode); virtual;
+    procedure SetMode(newMode: PTextMode); virtual;
     procedure HLine(x1, y1, width: byte; lineStyle: TLineStyle); virtual;
     procedure VLine(x1, y1, height: byte; lineStyle: TLineStyle); virtual;
     procedure Box(rect: TRect; style: TLineStyle); virtual;
@@ -83,7 +83,7 @@ type
   end;
 
 var
-  TextDriver: TTextDriver;
+  TextDriver: PTextDriver;
 
 implementation
 
@@ -143,31 +143,30 @@ var
   newState: PTextState;
 begin
   newState := New(PTextState, Create);
-  newState^ := State;
-  StateStack.Push(newState);
+  newState^ := State^;
+  StateStack^.Push(newState);
 end;
 
 procedure TTextDriver.PopState;
 var
-  newState: PTextState;
+  oldState: PTextState;
 begin
-  newState := PTextState(StateStack.Pop);
-  if (newState = nil) then exit;
-  State.Create;
-  State := newState^;
-  Dispose(newState, Done);
-  if (State.IsCursorOn) then CursorOn
+  oldState := PTextState(StateStack^.Pop);
+  if (oldState = nil) then exit;
+  State^ := oldState^;
+  Dispose(oldState, Done);
+  if (State^.IsCursorOn) then CursorOn
   else CursorOff;
-  SetXY(State.X, State.Y);
+  SetXY(State^.X, State^.Y);
 end;
 
 procedure TTextDriver.SetXY(newX, newY: byte);
 begin
-  State.X := newX;
-  State.Y := newY;
+  State^.X := newX;
+  State^.Y := newY;
 end;
 
-procedure TTextDriver.SetMode(newMode: TTextMode);
+procedure TTextDriver.SetMode(newMode: PTextMode);
 begin
 end;
 
@@ -181,43 +180,44 @@ end;
 
 procedure TTextDriver.SetForeColor(color: byte);
 begin
-  State.ForeColor := color;
+  State^.ForeColor := color;
 end;
 
 procedure TTextDriver.SetBlink(doBlink: boolean);
 begin
-  State.Blink := doBlink;
+  State^.Blink := doBlink;
 end;
 
 procedure TTextDriver.SetBackColor(color: byte);
 begin
-  State.BackColor := color;
+  State^.BackColor := color;
 end;
 
 procedure TTextDriver.CursorOn;
 begin
-  State.IsCursorOn := true;
+  State^.IsCursorOn := true;
 end;
 
 procedure TTextDriver.CursorOff;
 begin
-  State.IsCursorOn := false;
+  State^.IsCursorOn := false;
 end;
 
 procedure TTextDriver.Init;
 begin
-  Modes.Create;
-  State.Create;
+  Modes := New(PTextModeList, Create);
+  State := New(PTextState, Create);
+  StateStack := New(PStack, Create);
+  Mode := nil;
   ClearError(Error);
-  State.Create;
   BppMode := 4;
-  StateStack.Create;
 end;
 
 destructor TTextDriver.Done;
 begin
-  Modes.Done;
-  StateStack.Done;
+  Dispose(Modes, Done);
+  Dispose(State, Done);
+  Dispose(StateStack, Done);
   TObject.Done;
 end;
 
@@ -243,12 +243,12 @@ end;
 
 function TTextDriver.ForeColor: byte;
 begin
-  ForeColor := State.ForeColor;
+  ForeColor := State^.ForeColor;
 end;
 
 function TTextDriver.BackColor: byte;
 begin
-  BackColor := State.BackColor;
+  BackColor := State^.BackColor;
 end;
 
 end.

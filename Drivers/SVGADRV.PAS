@@ -191,7 +191,7 @@ begin
       FrameBuffer := Ptr($A000,$0000);
     end;
     Inc(modePtr);
-    Modes.Add(newMode);
+    Modes^.Add(newMode);
     Inc(index);
   end;
 end;
@@ -201,8 +201,8 @@ var
   offset: longint;
   ptr: PByte;
 begin
-  offset := x + longint(y) * Mode.Pitch;
-  ptr := Mode.FrameBuffer;
+  offset := x + longint(y) * Mode^.Pitch;
+  ptr := Mode^.FrameBuffer;
   Inc(ptr, offset and $FFFF);
   SwitchBank(offset shr 16);
   GetPixel := ptr^;
@@ -226,8 +226,7 @@ begin
   SetStandardPalette;
   _granularity := longint(SvgaMode^._vbeMode.Granularity) * 1024 - 1;
   _winFunc := SVgaMode^._vbeMode.WinFuncPtr;
-  Mode.Create;
-  Mode := SvgaMode^;
+  Mode := SvgaMode;
 end;
 
 procedure TSVgaDriver.SwitchBank(bank: word);
@@ -255,11 +254,11 @@ var
   offset: longint;
   ptr: PByte;
 begin
-  offset := x + longint(y) * Mode.Pitch;
-  ptr := Mode.FrameBuffer;
+  offset := x + longint(y) * Mode^.Pitch;
+  ptr := Mode^.FrameBuffer;
   Inc(ptr, offset and $FFFF);
   SwitchBank(offset shr 16);
-  ptr^ := State.ForeColor;
+  ptr^ := State^.ForeColor;
 end;
 
 procedure TSVgaDriver.DrawText(x, y: integer; text: string);
@@ -272,8 +271,8 @@ var
 begin
   if (Font = nil) then exit;
   PushState;
-  maxX := Mode.MaxX;
-  maxY := Mode.MaxY;
+  maxX := Mode^.MaxX;
+  maxY := Mode^.MaxY;
   for charIndex := 1 to Length(text) do begin
     ch := text[charIndex];
     chWidth := Font^.TextWidth(ch);
@@ -282,14 +281,14 @@ begin
     for yIndex := 0 to Font^.Height - 1 do begin
       if (sy > MaxY) then exit;
       for xIndex := 0 to chWidth - 1 do begin
-        color := State.ForeColor;
+        color := State^.ForeColor;
         tx := sx + xIndex;
         if (tx > maxX) then break;
         if (not Font^.PixelSet(ch, xIndex, yIndex)) then begin
-          State.ForeColor := State.BackColor;
+          State^.ForeColor := State^.BackColor;
         end;
         SetPixel(tx, sy);
-        State.ForeColor := color;
+        State^.ForeColor := color;
       end;
       Inc(sy);
     end;
@@ -327,8 +326,8 @@ var
   ptrOffset: word;
   bank: word;
 begin
-  offset := x + longint(y) * Mode.Pitch;
-  ptr := Mode.FrameBuffer;
+  offset := x + longint(y) * Mode^.Pitch;
+  ptr := Mode^.FrameBuffer;
   ptrOffset := offset and _granularity;
   Inc(ptr, ptrOffset);
   bank := offset shr 16;
@@ -337,7 +336,7 @@ begin
     partialWidth := _granularity - ptrOffset + 1;
     FillChar(ptr^, partialWidth, ForeColor);
     SwitchBank(bank + 1);
-    ptr := Mode.FrameBuffer;
+    ptr := Mode^.FrameBuffer;
     FillChar(ptr^, width - partialWidth, ForeColor);
   end
   else
@@ -368,17 +367,17 @@ begin
   for yIndex := 0 to height - 1 do begin
     sy := y + yIndex;
     sx := x;
-    if (sy > Mode.MaxY) then break;
+    if (sy > Mode^.MaxY) then break;
     if (sy < 0) then continue;
     for xIndex := 0 to width - 1 do
     begin
-      if (sx > Mode.MaxX) then begin
+      if (sx > Mode^.MaxX) then begin
         Inc(pixel, width - xIndex);
         break;
       end;
       if (pixel^ <> TransparentColor) and (sx > 0) then begin
-        offset := sx + longint(sy) * Mode.Pitch;
-        ptr := Mode.FrameBuffer;
+        offset := sx + longint(sy) * Mode^.Pitch;
+        ptr := Mode^.FrameBuffer;
         Inc(ptr, offset and $FFFF);
         SwitchBank(offset shr 16);
         ptr^ := pixel^;
@@ -398,9 +397,9 @@ var
 begin
   dest := buffer;
   FillChar(buffer^, rect.Width * rect.Height, 0);
-  pitch := Mode.Pitch;
-  maxX := Mode.MaxX;
-  maxY := Mode.MaxY;
+  pitch := Mode^.Pitch;
+  maxX := Mode^.MaxX;
+  maxY := Mode^.MaxY;
   for yIndex := rect.Y to rect.Bottom do begin
     if (yIndex > maxY) then break;
     if (yIndex < 0) then continue;
@@ -411,7 +410,7 @@ begin
       end;
       if (xIndex > 0) then begin
         offset := xIndex + longint(yIndex) * pitch;
-        pixel := Mode.FrameBuffer;
+        pixel := Mode^.FrameBuffer;
         Inc(pixel, offset and $FFFF);
         SwitchBank(offset shr 16);
         dest^ := pixel^;
