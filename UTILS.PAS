@@ -6,6 +6,8 @@ uses
   Strings;
 
 type
+  TBit = (bit0, bit1, bit2, bit3, bit4, bit5, bit6, bit7);
+  TBits = set of TBit;
   TErrorSeverity =
   (
     esNone,
@@ -20,6 +22,10 @@ type
     ErrorCode: TErrorCode;
     Severity: TErrorSeverity;
     ErrorMessage: string;
+  end;
+  TLongLowHigh = record
+    Low: word;
+    High: word;
   end;
 
 const

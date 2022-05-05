@@ -201,24 +201,24 @@ begin
   _closed := false;
   _length := size;
   _buffers := New(PReferenceList, Create);
-  Memory.BeginAllocTransaction;
+  Memory^.BeginAllocTransaction;
 
   allocated := 0;
   while (allocated < size) do
   begin
     newSize := MinL(MaxAlloc, size - allocated);
-    Memory.Alloc(reference, newSize);
-    if (Memory.Error.ErrorCode <> ecNone) then
+    Memory^.Alloc(reference, newSize);
+    if (Memory^.Error.ErrorCode <> ecNone) then
     begin
-      error := Memory.Error;
-      ClearError(Memory.Error);
-      Memory.RollbackAllocTransaction;
+      error := Memory^.Error;
+      ClearError(Memory^.Error);
+      Memory^.RollbackAllocTransaction;
       exit;
     end;
     _buffers^.Add(reference);
     Inc(allocated, newSize);
   end;
-  Memory.CommitAllocTransaction;
+  Memory^.CommitAllocTransaction;
 end;
 
 destructor TMemoryStream.Done;
@@ -228,7 +228,7 @@ begin
   index := 0;
   while (index < _buffers^.Count) do
   begin
-    Memory.FreeReference(_buffers^.GetItem(index));
+    Memory^.FreeReference(_buffers^.GetItem(index));
     Inc(index);
   end;
   Dispose(_buffers, Done);
@@ -268,9 +268,9 @@ begin
   if (_buffers^.Count = 0) then exit;
   bufferIndex := _position div MaxAlloc;
   bufferPos := _position mod MaxAlloc;
-  if (Memory.CurrentReference <> _buffers^.GetItem(bufferIndex)) then
-    Memory.SetCurrentReference(_buffers^.GetItem(bufferIndex));
-  Buffer := LinearToPointer(Memory.CurrentReference^.Offset + bufferPos);
+  if (Memory^.CurrentReference <> _buffers^.GetItem(bufferIndex)) then
+    Memory^.SetCurrentReference(_buffers^.GetItem(bufferIndex));
+  Buffer := LinearToPointer(Memory^.CurrentReference^.Offset + bufferPos);
 end;
 
 procedure TMemoryStream.Init;

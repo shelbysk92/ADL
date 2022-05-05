@@ -11,38 +11,6 @@ uses
   Drawing;
 
 type
-  PSVgaDriver = ^TSVgaDriver;
-  TSVgaDriver = object(TGraphicsDriver)
-  private
-    _svgaDriver: integer;
-    _currentBank: integer;
-    procedure SwitchBank(bank: word);
-  public
-    function GetPixel(x, y: integer): byte; virtual;
-    procedure GetImage(var buffer: PByte; rect: TRect); virtual;
-    procedure SetMode(newMode: TGraphicsMode); virtual;
-    procedure SetPixel(x, y: integer); virtual;
-    procedure DrawText(x, y: integer; text: string); virtual;
-    procedure DrawTextW(x, y: integer; text: TWideString); virtual;
-    procedure MoveTo(x, y: integer); virtual;
-    procedure LineTo(x, y: integer); virtual;
-    procedure Line(x1, y1, x2, y2: integer); virtual;
-    procedure Rectangle(x1, y1, x2, y2: integer); virtual;
-    procedure HLine(x, y, width: integer); virtual;
-    procedure VLine(x, y, height: integer); virtual;
-    procedure FillRect(rect: TRect); virtual;
-    procedure DrawImage(x, y, width, height: integer; image: PByte); virtual;
-    procedure Init; virtual;
-    destructor Done; virtual;
-  end;
-
-implementation
-
-uses
-  Globals,
-  Dos;
-
-type
   PVbeInfo = ^TVbeInfo;
   TVbeInfo = record
     VbeSignature: array[0..3] of char;
@@ -64,7 +32,7 @@ type
     WindowA: byte; {depricated}
     WindowB: byte; {depricated}
     Granularity: word; {depricated}
-    WidowSize: word;
+    WindowSize: word;
     SegmentA: word;
     SegmentB: word;
     WinFuncPtr: pointer; {depricated}
@@ -89,7 +57,7 @@ type
     ReservedMask: byte;
     ReservedPosition: byte;
     DirectColorAttributes: byte;
-    FrameBuffer: pointer; {physical address of the fram buffer}
+    FrameBuffer: pointer; {physical address of the frame buffer}
     OffScreenMemOffset: longint;
     OffScreenMemSize: word;
     Reserved1: array[0..205] of byte;
@@ -101,6 +69,39 @@ type
   public
     procedure Init; virtual;
   end;
+  PSVgaDriver = ^TSVgaDriver;
+  TSVgaDriver = object(TGraphicsDriver)
+  private
+    _svgaDriver: integer;
+    _currentBank: integer;
+    _granularity: longint;
+    _winFunc: pointer;
+    procedure SwitchBank(bank: word);
+  public
+    SvgaMode: PSvgaMode;
+    function GetPixel(x, y: integer): byte; virtual;
+    procedure GetImage(var buffer: PByte; rect: TRect); virtual;
+    procedure SetMode(newMode: PGraphicsMode); virtual;
+    procedure SetPixel(x, y: integer); virtual;
+    procedure DrawText(x, y: integer; text: string); virtual;
+    procedure DrawTextW(x, y: integer; text: TWideString); virtual;
+    procedure MoveTo(x, y: integer); virtual;
+    procedure LineTo(x, y: integer); virtual;
+    procedure Line(x1, y1, x2, y2: integer); virtual;
+    procedure Rectangle(x1, y1, x2, y2: integer); virtual;
+    procedure HLine(x, y, width: integer); virtual;
+    procedure VLine(x, y, height: integer); virtual;
+    procedure FillRect(rect: TRect); virtual;
+    procedure DrawImage(x, y, width, height: integer; image: PByte); virtual;
+    procedure Init; virtual;
+    destructor Done; virtual;
+  end;
+
+implementation
+
+uses
+  Globals,
+  Dos;
 
 procedure TSvgaMode.Init;
 begin
@@ -124,9 +125,11 @@ var
 begin
   TGraphicsDriver.Init;
   TypeName := 'TSVgaDriver';
+  SvgaMode := nil;
   _currentBank := -1;
   segm := Seg(info);
   offs := Ofs(info);
+  _granularity := 0;
   asm
     push es
     mov  ax, 4F00h
@@ -185,7 +188,7 @@ begin
       Bpp := _vbeMode.Bpp;
       Pitch := _vbeMode.Pitch;
       HelpText := 'Requires a VESA compliant Super VGA card.';
-      FrameBuffer := Ptr($A000, $0000);
+      FrameBuffer := Ptr($A000,$0000);
     end;
     Inc(modePtr);
     Modes.Add(newMode);
@@ -205,12 +208,15 @@ begin
   GetPixel := ptr^;
 end;
 
-procedure TSVgaDriver.SetMode(newMode: TGraphicsMode);
+procedure TSVgaDriver.SetMode(newMode: PGraphicsMode);
 var
   selectedMode: word;
-  oldMode: word;
 begin
-  selectedMode := newMode.AdditionalData;
+  SvgaMode := PSVgaMode(newMode);
+  selectedMode := newMode^.AdditionalData;
+  if (bit7 in TBits(Lo(SvgaMode^._vbeMode.Attributes))) then begin
+    selectedMode := selectedMode or $4000;
+  end;
   asm
     mov   ax, 4F02h
     mov   bx, [selectedMode]
@@ -218,26 +224,29 @@ begin
   end;
   if (Error.ErrorCode <> ecNone) then exit;
   SetStandardPalette;
+  _granularity := longint(SvgaMode^._vbeMode.Granularity) * 1024 - 1;
+  _winFunc := SVgaMode^._vbeMode.WinFuncPtr;
   Mode.Create;
-  Mode := newMode;
+  Mode := SvgaMode^;
 end;
 
 procedure TSVgaDriver.SwitchBank(bank: word);
+var
+  winFunc: pointer;
 begin
   if (bank = _currentBank) then exit;
   _currentBank := bank;
-  { some VBE implementations have separate read and write windows }
+  winFunc := _winFunc;
   asm
-    { set Window A }
-    mov  ax, 4F05h
-    mov  bx, 0
+    mov  bh, 0
+    mov  bl, 0
     mov  dx, [bank]
-    int  10h
-    { set Window B }
-    mov  ax, 4F05h
-    mov  bx, 1
+    call [winFunc]
+
+    mov  bh, 0
+    mov  bl, 1
     mov  dx, [bank]
-    int  10h
+    call [winFunc]
   end;
 end;
 
@@ -320,12 +329,12 @@ var
 begin
   offset := x + longint(y) * Mode.Pitch;
   ptr := Mode.FrameBuffer;
-  ptrOffset := offset and $FFFF;
+  ptrOffset := offset and _granularity;
   Inc(ptr, ptrOffset);
   bank := offset shr 16;
   SwitchBank(bank);
-  if (ptrOffset + width > $FFFF) then begin
-    partialWidth := $FFFF - ptrOffset + 1;
+  if (ptrOffset + width > _granularity) then begin
+    partialWidth := _granularity - ptrOffset + 1;
     FillChar(ptr^, partialWidth, ForeColor);
     SwitchBank(bank + 1);
     ptr := Mode.FrameBuffer;

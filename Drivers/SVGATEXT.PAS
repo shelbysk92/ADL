@@ -57,7 +57,7 @@ begin
     CreateError(Graphics.Error, ecGraphicsModeNotFound, esError);
     exit;
   end;
-  Graphics.SetMode(graphMode^);
+  Graphics.SetMode(graphMode);
   Mode.Create;
   Mode := newMode;
   MouseDriver.SetMouseResolution(graphMode^.Width, graphMode^.Height);

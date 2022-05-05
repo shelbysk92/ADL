@@ -150,7 +150,7 @@ type
     procedure GetImage(var buffer: PByte; rect: TRect); virtual;
     procedure SetForeColor(color: byte); virtual;
     procedure SetBackColor(color: byte); virtual;
-    procedure SetMode(newMode: TGraphicsMode); virtual;
+    procedure SetMode(newMode: PGraphicsMode); virtual;
     procedure SetPixel(x, y: integer); virtual;
     procedure MoveTo(x, y: integer); virtual;
     procedure LineTo(x, y: integer); virtual;
@@ -225,7 +225,7 @@ function TGraphicsDriver.GetPixel(x, y: integer): byte;
 begin
 end;
 
-procedure TGraphicsDriver.SetMode(newMode: TGraphicsMode);
+procedure TGraphicsDriver.SetMode(newMode: PGraphicsMode);
 begin
 end;
 
