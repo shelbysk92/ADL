@@ -1,3 +1,4 @@
+{$I COMPILER.INC}
 unit TextDrv;
 
 interface
@@ -6,6 +7,7 @@ uses
   Objects,
   Collects,
   Consts,
+  MouseDrv,
   Utils,
   Drawing,
   GraphDrv,
@@ -21,7 +23,7 @@ type
     lsDouble
   );
   PTextState = ^TTextState;
-  TTextState = object(TObject)
+  TTextState = object(TPersistent)
   public
     ForeColor, BackColor: byte;
     Blink: boolean;
@@ -29,6 +31,8 @@ type
     Attributes: byte;
     IsCursorOn: boolean;
     procedure Init; virtual;
+    procedure Assign(var source: TPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
   end;
   PTextMode = ^TTextMode;
   TTextMode = Object(TObject)
@@ -77,6 +81,10 @@ type
     procedure Box(rect: TRect; style: TLineStyle); virtual;
     procedure FillRect(rect: TRect); virtual;
     procedure ClrScr; virtual;
+    procedure ShowMouseCursor; virtual;
+    procedure HideMouseCursor; virtual;
+    procedure EraseMouseCursor(mouseState: TMouseState); virtual;
+    procedure DrawMouseCursor(mouseState: TMouseState); virtual;
     function ForeColor: byte; virtual;
     function BackColor: byte; virtual;
     destructor Done; virtual;
@@ -96,6 +104,34 @@ begin
   Blink := false;
   Attributes := 0;
   IsCursorOn := true;
+end;
+
+procedure TTextState.Assign(var source: TPersistent);
+var
+  state: PTextState;
+begin
+  state := PTextState(@source);
+  ForeColor := state^.ForeColor;
+  BackColor := state^.BackColor;
+  Blink := state^.Blink;
+  X := state^.X;
+  Y := state^.Y;
+  Attributes := state^.Attributes;
+  IsCursorOn := state^.IsCursorOn;
+end;
+
+procedure TTextState.AssignTo(var dest: TPersistent);
+var
+  state: PTextState;
+begin
+  state := PTextState(@dest);
+  state^.ForeColor := ForeColor;
+  state^.BackColor := BackColor;
+  state^.Blink := Blink;
+  state^.X := X;
+  state^.Y := Y;
+  state^.Attributes := Attributes;
+  state^.IsCursorOn := IsCursorOn;
 end;
 
 procedure TTextMode.Init;
@@ -143,7 +179,7 @@ var
   newState: PTextState;
 begin
   newState := New(PTextState, Create);
-  newState^ := State^;
+  newState^.Assign(State^);
   StateStack^.Push(newState);
 end;
 
@@ -153,7 +189,7 @@ var
 begin
   oldState := PTextState(StateStack^.Pop);
   if (oldState = nil) then exit;
-  State^ := oldState^;
+  State^.Assign(oldState^);
   Dispose(oldState, Done);
   if (State^.IsCursorOn) then CursorOn
   else CursorOff;
@@ -249,6 +285,24 @@ end;
 function TTextDriver.BackColor: byte;
 begin
   BackColor := State^.BackColor;
+end;
+
+procedure TTextDriver.ShowMouseCursor;
+begin
+  MouseDriver^.ShowMouse;
+end;
+
+procedure TTextDriver.HideMouseCursor;
+begin
+  MouseDriver^.HideMouse;
+end;
+
+procedure TTextDriver.EraseMouseCursor;
+begin
+end;
+
+procedure TTextDriver.DrawMouseCursor;
+begin
 end;
 
 end.

@@ -46,7 +46,6 @@ begin
   TypeName := 'TApplication';
   ClrScr;
   MouseDriver := New(PMouseDriver, Create);
-  MouseDriver^.HideMouse;
   WriteLn('Mouse initialized.');
 {  Keyboard.Create;}
   Closed := false;

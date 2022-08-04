@@ -17,6 +17,23 @@ uses
   Collects;
 
 type
+  TMouseCursorImage = array[0..12, 0..9] of byte;
+  PMouseCursor = ^TMouseCursor;
+  TMouseCursor = object(TBaseObject)
+  private
+    _image: TMouseCursorImage;
+    _width, _height: word;
+    _visible: boolean;
+    _x, _y: integer;
+  public
+    BackData: PByte;
+    procedure Draw; virtual;
+    procedure Init; virtual;
+    destructor Done; virtual;
+    function Width: integer; virtual;
+    function Height: integer; virtual;
+    procedure StoreBackground(X, Y: integer); virtual;
+  end;
   PSvgaTextState = object(TTextState)
   private
   public
@@ -25,6 +42,7 @@ type
   PSvgaTextDriver = ^TSvgaTextDriver;
   TSvgaTextDriver = Object(TTextDriver)
   private
+    _mouseCursor: PMouseCursor;
     function GetStandardColor(color: byte): byte;
   public
     procedure Write(const txt: string); virtual;
@@ -40,11 +58,34 @@ type
     procedure FillRect(rect: TRect); virtual;
     procedure SetForeColor(color: byte); virtual;
     procedure SetBackColor(color: byte); virtual;
+    procedure ShowMouseCursor; virtual;
+    procedure HideMouseCursor; virtual;
+    procedure EraseMouseCursor(mouseState: TMouseState); virtual;
+    procedure DrawMouseCursor(mouseState: TMouseState); virtual;
     procedure ClrScr; virtual;
     destructor Done; virtual;
   end;
 
 implementation
+
+const
+  DefaultMouseCursor: TMouseCursorImage =
+  (
+    ($27, $01, $01, $01, $01, $01, $01, $01, $01, $01),
+    ($27, $27, $01, $01, $01, $01, $01, $01, $01, $01),
+    ($27, $00, $27, $01, $01, $01, $01, $01, $01, $01),
+    ($27, $00, $00, $27, $01, $01, $01, $01, $01, $01),
+    ($27, $00, $00, $00, $27, $01, $01, $01, $01, $01),
+    ($27, $00, $00, $00, $00, $27, $01, $01, $01, $01),
+    ($27, $00, $00, $00, $00, $00, $27, $01, $01, $01),
+    ($27, $00, $00, $00, $00, $00, $00, $27, $01, $01),
+    ($27, $00, $00, $00, $00, $00, $00, $00, $27, $01),
+    ($27, $00, $00, $27, $27, $27, $27, $27, $27, $27),
+    ($27, $00, $27, $01, $01, $01, $01, $01, $01, $01),
+    ($27, $27, $01, $01, $01, $01, $01, $01, $01, $01),
+    ($27, $01, $01, $01, $01, $01, $01, $01, $01, $01)
+  );
+
 
 procedure TSvgaTextDriver.SetMode(newMode: PTextMode);
 var
@@ -60,6 +101,8 @@ begin
   Graphics^.SetMode(graphMode);
   Mode := newMode;
   MouseDriver^.SetMouseResolution(graphMode^.Width, graphMode^.Height);
+  if (_mouseCursor <> nil) then Dispose(_mouseCursor, Done);
+  _mouseCursor := New(PMouseCursor, Create);
 end;
 
 procedure TSvgaTextDriver.SetXY(newX, newY: byte);
@@ -72,6 +115,8 @@ var
   index: integer;
   ch: char;
 begin
+  Graphics^.SetForecolor(ForeColor);
+  Graphics^.SetBackColor(BackColor);
   for index := 1 to Length(txt) do begin
     ch := txt[index];
     Graphics^.DrawText(State^.X * 8, State^.Y * 16, ch);
@@ -96,6 +141,43 @@ end;
 procedure TSvgaTextDriver.CursorOff;
 begin
 end;
+
+procedure TSvgaTextDriver.EraseMouseCursor(mouseState: TMouseState);
+begin
+  if (_mouseCursor^.BackData <> nil) and (_mouseCursor^._Visible) and (mouseState.Visible) then
+    Graphics^.DrawImage(_mouseCursor^._X, _mouseCursor^._Y, _mouseCursor^.Width, _mouseCursor^.Height, _mouseCursor^.BackData);
+end;
+
+procedure TSvgaTextDriver.DrawMouseCursor(mouseState: TMouseState);
+begin
+  if (not _mouseCursor^._Visible) or (not mouseState.Visible) then exit;
+  _mouseCursor^.StoreBackground(mouseState.X, mouseState.Y);
+  _mouseCursor^._X := mouseState.X;
+  _mouseCursor^._Y := mouseState.Y;
+  _mouseCursor^.Draw;
+end;
+
+procedure TSvgaTextDriver.ShowMouseCursor;
+var
+  mouseState: TMouseState;
+begin
+  _mouseCursor^._Visible := true;
+  MouseDriver^.State^.Visible := true;
+  MouseDriver^.GetMouseState(mouseState);
+  DrawMouseCursor(mouseState);
+  MouseDriver^.ShowMouse;
+end;
+
+procedure TSvgaTextDriver.HideMouseCursor;
+var
+  mouseState: TMouseState;
+begin
+  EraseMouseCursor(MouseDriver^.State^);
+  _mouseCursor^._visible := false;
+  MouseDriver^.State^.Visible := false;
+  MouseDriver^.HideMouse;
+end;
+
 
 function Is16Color(item: pointer; var value): boolean; far;
 begin
@@ -131,6 +213,7 @@ begin
     end;
     Modes^.Add(textMode);
   end;
+  _mouseCursor := nil;
 end;
 
 function TSVgaTextDriver.GetStandardColor(color: byte): byte;
@@ -183,6 +266,9 @@ end;
 destructor TSvgaTextDriver.Done;
 begin
   TTextDriver.Done;
+  if (_mouseCursor <> nil) then begin
+    Dispose(_mouseCursor, Done);
+  end;
   Graphics^.Done;
 end;
 
@@ -286,5 +372,55 @@ begin
   Graphics^.FillRect(graphRect);
   Graphics^.PopState;
 end;
+
+procedure TMouseCursor.Init;
+begin
+  TBaseObject.Init;
+  _width := 10;
+  _height := 13;
+  _visible := true;
+  _y := 0;
+  _x := 0;
+  BackData := nil;
+  _image := DefaultMouseCursor;
+end;
+
+procedure TMouseCursor.Draw;
+var
+  xIndex, yIndex: integer;
+  pixel: PByte;
+  rect, mouseRect, clipRect: TRect;
+  xPos, yPos, startX, startY: integer;
+begin
+  if not _visible then exit;
+  Graphics^.DrawImage(_x, _y, _width, _height, @_image);
+end;
+
+procedure TMouseCursor.StoreBackground(x, y: integer);
+var
+  rect: TRect;
+begin
+  if (BackData = nil) then GetMem(BackData, Width * Height);
+  rect.Create(x, y, Width, Height);
+  Graphics^.GetImage(BackData, rect);
+end;
+
+function TMouseCursor.Width: integer;
+begin
+  Width := _width;
+end;
+
+function TMouseCursor.Height: integer;
+begin
+  Height := _height;
+end;
+
+destructor TMouseCursor.Done;
+begin
+  if (BackData <> nil) then
+    FreeMem(BackData, _width * _height);
+  TBaseObject.Done;
+end;
+
 
 end.

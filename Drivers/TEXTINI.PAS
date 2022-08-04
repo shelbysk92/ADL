@@ -16,7 +16,7 @@ type
     tdDirect,
     tdAnsi,
     tdCrt,
-    tdSvgaText
+    tdSvga
   );
   PTextDriverFactory = ^TTextDriverFactory;
   TTextDriverFactory = object(TBaseObject)
@@ -37,7 +37,7 @@ begin
     tdDirect: begin
       driver := New(PDirectTextDriver, Create);
     end;
-    tdSvgaText: begin
+    tdSvga: begin
       driver := New(PSVgaTextDriver, Create);
     end;
     tdAnsi: begin

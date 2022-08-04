@@ -48,8 +48,8 @@ type
     Green: byte;
     Blue: byte;
   end;
-  PSystemFontData = ^TSystemFontData;
-  TSystemFontData = array[0..255, 0..15] of byte;
+  PFontData = ^TFontData;
+  TFontData = array[0..255, 0..15] of byte;
   TRgbPalette = array[byte] of TRgbColor;
   PGraphicsMode = ^TGraphicsMode;
   TGraphicsMode = object(TPersistent)
@@ -81,15 +81,15 @@ type
   PFont = ^TFont;
   TFont = object(TPersistent)
   private
-    _fontData: PByte;
     _maxWidth: integer;
-    _fontDataSize: integer;
   public
     Version: real;
     TransparentColor: byte;
     Transparent: boolean;
     Initialized: boolean;
     Height: integer;
+    FontData: PFontData;
+    FontDataSize: integer;
     constructor Create(newId: string);
     constructor CreateAssign(newId: string; font: TFont);
     destructor Done; virtual;
@@ -113,7 +113,6 @@ type
   PSystemFont = ^TSystemFont;
   TSystemFont = object(TMonospaceFont)
   private
-    _systemFontData: PSystemFontData;
   public
     function CharWidth(ch: char): integer; virtual;
     function PixelSet(ch: char; x, y: byte): boolean; virtual;
@@ -557,8 +556,8 @@ end;
 
 destructor TFont.Done;
 begin
-  if (_fontData <> nil) then
-    FreeMem(_fontData, _fontDataSize);
+  if (FontData <> nil) then
+    FreeMem(FontData, FontDataSize);
   TPersistent.Done;
 end;
 
@@ -567,12 +566,12 @@ var
   font: PFont;
 begin
   font := PFont(@source);
-  if (_fontData <> nil) then begin
-    FreeMem(_fontData, _fontDataSize);
-    GetMem(_fontData, font^._fontDataSize);
-    Move(font^._fontData^, _fontData^, font^._fontDataSize);
+  if (FontData <> nil) then begin
+    FreeMem(FontData, FontDataSize);
+    GetMem(FontData, font^.FontDataSize);
+    Move(font^.FontData^, FontData^, font^.FontDataSize);
   end;
-  _fontDataSize := font^._fontDataSize;
+  FontDataSize := font^.FontDataSize;
   _maxWidth := font^._maxWidth;
   Version := font^.Version;
   TransparentColor := font^.TransparentColor;
@@ -586,12 +585,12 @@ var
   font: PFont;
 begin
   font := PFont(@dest);
-  if (font^._fontData <> nil) then begin
-    FreeMem(font^._fontData, font^._fontDataSize);
-    GetMem(font^._fontData, _fontDataSize);
-    Move(_fontData^, font^._fontData^, _fontDataSize);
+  if (font^.FontData <> nil) then begin
+    FreeMem(font^.FontData, font^.FontDataSize);
+    GetMem(font^.FontData, FontDataSize);
+    Move(FontData^, font^.FontData^, FontDataSize);
   end;
-  font^._fontDataSize := _fontDataSize;
+  font^.FontDataSize := FontDataSize;
   font^._maxWidth := _maxWidth;
   font^.Version := Version;
   font^.TransparentColor := TransparentColor;
@@ -604,7 +603,7 @@ procedure TFont.Init;
 begin
   TPersistent.Init;
   TypeName := 'TFont';
-  _fontData := nil;
+  FontData := nil;
   Version := 1.0;
   TransparentColor := 0;
   Transparent := true;
@@ -680,13 +679,13 @@ begin
   Intr($10, regs);
   Height := regs.cx;
   fontPtr := Ptr(regs.es, regs.bp);
-  GetMem(_systemFontData, 256 * Height);
-  Move(fontPtr^, _systemfontData^, 256 * Height);
+  FontDataSize := 256 * Height;
+  GetMem(FontData, FontDataSize);
+  Move(fontPtr^, FontData^, FontDataSize);
 end;
 
 destructor TSystemFont.Done;
 begin
-  FreeMem(_systemFontData, 256 * Height);
   TMonospaceFont.Done;
 end;
 
@@ -697,7 +696,7 @@ end;
 
 function TSystemFont.PixelSet(ch: char; x, y: byte): boolean;
 begin
-  PixelSet := _systemFontData^[ord(ch), y] and (128 shr x) > 0;
+  PixelSet := PFontData(FontData)^[ord(ch), y] and (128 shr x) > 0;
 end;
 
 procedure TGraphicsState.Init;

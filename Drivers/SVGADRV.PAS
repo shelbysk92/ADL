@@ -226,7 +226,8 @@ begin
   SetStandardPalette;
   _granularity := longint(SvgaMode^._vbeMode.Granularity) * 1024 - 1;
   _winFunc := SVgaMode^._vbeMode.WinFuncPtr;
-  Mode := SvgaMode;
+  if (Mode = nil) then Mode := New(PGraphicsMode, Create);
+  Mode^.Assign(SvgaMode^);
 end;
 
 procedure TSVgaDriver.SwitchBank(bank: word);
@@ -268,34 +269,55 @@ var
   pixel: byte;
   tx: integer;
   color: byte;
+  offset: longint;
+  ptr: PByte;
+  lineSize: word;
+  chVal: byte;
+  currentLine: array[0..8] of byte;
+  pitch: integer;
+  fontData: PFontData;
+  sForeColor, sBackColor: byte;
 begin
   if (Font = nil) then exit;
-  PushState;
   maxX := Mode^.MaxX;
   maxY := Mode^.MaxY;
+  pitch := Mode^.Pitch;
+  fontData := Font^.FontData;
+  sForeColor := State^.ForeColor;
+  sBackColor := State^.BackColor;
   for charIndex := 1 to Length(text) do begin
     ch := text[charIndex];
     chWidth := Font^.TextWidth(ch);
     sy := y;
-    sx := x + (charIndex - 1) * chWidth;
+    sx := x + (charIndex - 1) * chWidth - 1;
+    color := State^.ForeColor;
+    chVal := Ord(ch);
     for yIndex := 0 to Font^.Height - 1 do begin
       if (sy > MaxY) then exit;
+      offset := longint(sy) * pitch + sx;
+      ptr := Mode^.FrameBuffer;
+      Inc(ptr, offset and _granularity);
+
       for xIndex := 0 to chWidth - 1 do begin
-        color := State^.ForeColor;
         tx := sx + xIndex;
         if (tx > maxX) then break;
-        if (not Font^.PixelSet(ch, xIndex, yIndex)) then begin
-          State^.ForeColor := State^.BackColor;
+        if (fontData^[chVal, yIndex] and (128 shr xIndex) > 0) then begin
+          color := sForeColor;
+        end
+        else
+          color := sBackColor;
+        Inc(ptr);
+        Inc(offset);
+        if (offset shr 16 <> _currentBank) then begin
+          SwitchBank(offset shr 16);
         end;
-        SetPixel(tx, sy);
-        State^.ForeColor := color;
+        ptr^ := color;
       end;
       Inc(sy);
     end;
-    Inc(sx, chWidth);
   end;
-  PopState;
 end;
+
 
 procedure TSVgaDriver.DrawTextW(x, y: integer; text: TWideString);
 begin

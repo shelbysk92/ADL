@@ -21,7 +21,7 @@ type
   );
   TButtonStates = set of TButtonState;
   PMouseState = ^TMouseState;
-  TMouseState = object(TObject)
+  TMouseState = object(TPersistent)
   private
   public
     X, Y: integer;
@@ -30,6 +30,8 @@ type
     procedure Init; virtual;
     function Moved(state: TMouseState): boolean; virtual;
     function Equals(state: TMouseState): boolean;
+    procedure Assign(var source: TPersistent); virtual;
+    procedure AssignTo(var dest: TPersistent); virtual;
     destructor Done; virtual;
   end;
   PMouseDriver = ^TMouseDriver;
@@ -55,7 +57,8 @@ var
 implementation
 
 uses
-  Dos, DosConst;
+  Dos,
+  DosConst;
 
 const
   MouseCursor: array[0..31] of word =
@@ -145,6 +148,28 @@ destructor TMouseState.Done;
 begin
 end;
 
+procedure TMouseState.Assign(var source: TPersistent);
+var
+  state: PMouseState;
+begin
+  state := PMouseState(@source);
+  X := state^.X;
+  Y := state^.Y;
+  ButtonState := state^.ButtonState;
+  Visible := state^.Visible;
+end;
+
+procedure TMouseState.AssignTo(var dest: TPersistent);
+var
+  state: PMouseState;
+begin
+  state := PMouseState(@dest);
+  state^.X := X;
+  state^.Y := Y;
+  state^.ButtonState := ButtonState;
+  state^.Visible := Visible;
+end;
+
 function TMouseState.Equals(state: TMouseState): boolean;
 begin
   Equals := (state.X = X) and (state.Y = Y) and (state.ButtonState = ButtonState);
@@ -215,7 +240,7 @@ var
   newState: PMouseState;
 begin
   newState := New(PMouseState, Create);
-  newState^ := State^;
+  newState^.Assign(State^);
   StateStack^.Push(newState);
 end;
 
@@ -225,7 +250,7 @@ var
 begin
   oldState := PMouseState(StateStack^.Pop);
   if (oldState = nil) then exit;
-  State^ := oldState^;
+  State^.Assign(oldState^);
   Dispose(oldState, Done);
   if (State^.Visible) then ShowMouse
   else HideMouse;
@@ -257,10 +282,14 @@ begin
   Intr(MouseInterrupt, reg);
   currentState.X := reg.CX;
   currentState.Y := reg.DX;
+  currentState.Visible := State^.Visible;
   if (reg.BX and $01 > 0) then
     Include(currentState.ButtonState, bsLeft);
   if (reg.BX and $02 > 0) then
     Include(currentState.ButtonState, bsRight);
+  State^.X := currentState.X;
+  State^.Y := currentState.Y;
+  State^.ButtonState := currentState.ButtonState;
 end;
 
 end.
